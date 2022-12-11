@@ -1,8 +1,12 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import os
+
+output_folder = 'results/'
 
 # Plot 2D heatmap of each of a and b functions, side by side
 def heatmap_comparison(a, b, num_points, emukit_model, output_filename='bayes_opt_vis.png'):
+    output_filename = os.path.join(output_folder, output_filename)
     fig, axes = plt.subplots(1, 2)
 
     plot_2D_vis(a, num_points, emukit_model, axes, 0)

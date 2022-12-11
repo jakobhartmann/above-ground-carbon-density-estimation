@@ -13,6 +13,12 @@ Try out the existing function by running `python main.py`. This will run the fun
 
 Tinker with the parameters in `main.py`, or you can modify the bayesian optimization procedure in `bayes_opt.py`.
 
+Running the basic examples will look like:
+**NDVI**
+![NDVI](results/sample_NDVI_bayes_opt_vis.png)
+**EVI**
+![EVI](results/sample_EVI_bayes_opt_vis.png)
+
 ### Known Issues
 Our current usage of GPy ends up throwing several warnings. When running NDVI, we get
 ```
