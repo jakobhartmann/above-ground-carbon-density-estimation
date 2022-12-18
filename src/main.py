@@ -1,7 +1,9 @@
+import matplotlib.pyplot as plt
+
 from bayes_opt import *
 from conversions import m_to_deg
 from custom_logger import CustomLogger, LOGGER
-from visualization import heatmap_comparison
+from visualization import heatmap_comparison, plot_2D_vis, plot_variance
 import ee
 import numpy as np
 np.random.seed(20)
@@ -81,7 +83,8 @@ def basic_gp(dataloader, num_points, num_iter):
 
 
     LOGGER.log(dict(
-        heatmap=heatmap_comparison(mu_plot, ground_truth, num_points, emukit_model),
+        mean_plot=heatmap_comparison(mu_plot, ground_truth, num_points, emukit_model),
+        variance_plot=plot_variance(var_plot, num_points, emukit_model),
         test_performance=1.5
     ))
 
@@ -103,7 +106,7 @@ if __name__ == '__main__':
         lat = 45.77,
         lon= 4.855
     )
-    LOGGER = CustomLogger(use_wandb=True, config=config)
+    LOGGER = CustomLogger(use_wandb=False, config=config)
     center_point = np.array([[LOGGER.config["lat"], LOGGER.config["lon"]]])
     dataloader = DataLoad(center_point, LOGGER.config["num_points"], LOGGER.config["scale"], veg_idx_band, data_load_type)
     basic_gp(dataloader, LOGGER.config["num_points"], LOGGER.config["num_iter"])
