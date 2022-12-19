@@ -4,17 +4,9 @@ import ee
 import numpy as np
 from os.path import exists
 
-np.random.seed(20)
-
-# Trigger the authentication flow. Can comment out if auth token cached, eg after running it once
-# ee.Authenticate()
-# Initialize the library.
-ee.Initialize()
-
 class DataLoad:
-    def __init__(self, source_dataset, center_point, num_points, scale, veg_idx_band, data_load_type):
+    def __init__(self, center_point, num_points, scale, veg_idx_band, data_load_type):
         print("2. Initialize the new instance of Point.")
-        self.source_dataset = source_dataset
         self.center_point = center_point
         self.num_points = num_points
         self.scale = scale
@@ -42,6 +34,12 @@ class DataLoad:
 
     # Load data from api
     def load_data_api(self,):
+        # Trigger the authentication flow. Can comment out if auth token cached, eg after running it once
+        # ee.Authenticate()
+        # Initialize the library.
+        ee.Initialize()
+        source_dataset = ee.ImageCollection('MODIS/061/MOD13Q1')
+
         # Setup the domain of our estimation
         x_space = np.linspace(-1, 1, self.num_points)
         y_space = np.linspace(-1, 1, self.num_points)
@@ -69,7 +67,7 @@ class DataLoad:
             # Call API
             geom_coords = ee.FeatureCollection(
             [ee.Geometry.Point(c[0], c[1]) for c in buffer])
-            samples = self.source_dataset.mean().reduceRegions(**{
+            samples = source_dataset.mean().reduceRegions(**{
                 'collection': geom_coords,
                 'scale': self.scale,
                 'reducer': 'mean'}).getInfo()
