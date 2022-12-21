@@ -101,7 +101,7 @@ class DataLoad:
     
     # Returns values for given points, normalized coordinates (-1, 1)
     def load_values(self, normal_indices):
-        indices = ((normal_indices+1.0)/2*(self.num_points-1)).astype(np.int)
+        indices = ((normal_indices+1.0)/2*(self.num_points-1)).astype(np.int_)
         return np.array([np.array([self.dataset[v[0],v[1]]]) for v in indices])
 
 
