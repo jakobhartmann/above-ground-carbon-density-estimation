@@ -1,0 +1,62 @@
+import numpy as np
+
+def l1(bo_mean, ground_truth):
+    return np.sum(np.abs(bo_mean - ground_truth))
+
+
+def l2(bo_mean, ground_truth):
+    return np.sum((bo_mean - ground_truth) ** 2)
+
+
+def mse(bo_mean, ground_truth):
+    return np.mean((bo_mean - ground_truth) ** 2)
+
+
+def psnr(bo_mean, ground_truth):
+    max_val = max([np.max(bo_mean), np.max(ground_truth)])
+    return 10 * np.log10((max_val ** 2) / mse(bo_mean, ground_truth))
+
+
+def ssim(bo_mean, ground_truth):
+    # Dynamic range (of the pixel values)
+    min_val = min([np.min(bo_mean), np.min(ground_truth)])
+    max_val = max([np.max(bo_mean), np.max(ground_truth)])
+    L = max_val / min_val # TODO Check dynamic range calculation
+
+    # Constants for avoiding instability
+    k1 = 0.01 # default value
+    k2 = 0.03 # default value
+    c1 = (k1 * L) ** 2
+    c2 = (k2 * L) ** 2
+    c3 = c2 / 2
+
+    # Weights
+    alpha = 1
+    beta = 1
+    gamma = 1
+
+    # Means
+    mu_x = np.mean(bo_mean)
+    mu_y = np.mean(ground_truth)
+
+    # Variances and standard deviations
+    var_x = np.var(bo_mean)
+    std_x = np.sqrt(var_x)
+    var_y = np.var(ground_truth)
+    std_y = np.sqrt(var_y)
+
+    # Covariance
+    cov = np.cov(bo_mean.flatten(), ground_truth.flatten())
+    cov_x_y = cov[0][1]
+
+    # Luminance
+    l = (2 * mu_x * mu_y + c1) / (mu_x ** 2 + mu_y ** 2 + c1)
+    # Contrast
+    c = (2 * std_x * std_y + c2) / (var_x + var_y + c2)
+    # Structure
+    s = (cov_x_y + c3) / (std_x * std_y + c3)
+
+    # SSIM
+    result = (l ** alpha) * (c ** beta) * (s ** gamma)
+
+    return result
