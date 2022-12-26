@@ -4,6 +4,7 @@ from bayes_opt import *
 from conversions import m_to_deg
 from custom_logger import CustomLogger, LOGGER
 from visualization import *
+from benchmarking import *
 import ee
 import numpy as np
 np.random.seed(20)
@@ -49,7 +50,7 @@ def basic_gp_example_old(target_function, num_points, num_iter):
     x_plot = np.stack((x_plot[1], x_plot[0]), axis=-1).reshape(-1, 2)
 
     # Function we are trying to model
-    target_function = VI_at
+    # target_function = VI_at
 
     # Bayesian optimization
     X_init = np.array([[0.2, 0.4], [0.6, -0.4], [0.9, 0.0]])
@@ -121,13 +122,18 @@ def basic_gp(dataloader, num_points, num_iter):
     X_init = np.array([[0.2, 0.4], [0.6, -0.4], [0.9, 0.0]])
     emukit_model = geographic_bayes_opt(dataloader, x_space, y_space, X_init, num_iter=num_iter)
     ground_truth = dataloader.load_data_local()
+    ground_truth_reshaped = ground_truth.reshape(num_points ** 2, 1)
     mu_plot, var_plot = emukit_model.predict(x_plot)
 
 
     LOGGER.log(dict(
         mean_plot=heatmap_comparison(mu_plot, ground_truth, num_points, emukit_model),
         variance_plot=plot_variance(var_plot, num_points, emukit_model),
-        test_performance=1.5
+        L1 = l1(mu_plot, ground_truth_reshaped),
+        L2 = l2(mu_plot, ground_truth_reshaped),
+        MSE = mse(mu_plot, ground_truth_reshaped),
+        PSNR = psnr(mu_plot, ground_truth_reshaped),
+        SSIM = ssim(mu_plot, ground_truth_reshaped)
     ))
 
     # Show results
