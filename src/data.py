@@ -5,8 +5,9 @@ import numpy as np
 from os.path import exists
 
 class DataLoad:
-    def __init__(self, center_point, num_points, scale, veg_idx_band, data_load_type):
+    def __init__(self, source, center_point, num_points, scale, veg_idx_band, data_load_type):
         print("2. Initialize the new instance of Point.")
+        self.source = source
         self.center_point = center_point
         self.num_points = num_points
         self.scale = scale
@@ -35,10 +36,10 @@ class DataLoad:
     # Load data from api
     def load_data_api(self,):
         # Trigger the authentication flow. Can comment out if auth token cached, eg after running it once
-        # ee.Authenticate()
+        # ee.Authenticate(auth_mode="notebook")
         # Initialize the library.
         ee.Initialize()
-        source_dataset = ee.ImageCollection('MODIS/061/MOD13Q1')
+        source_dataset = ee.ImageCollection(self.source)
 
         # Setup the domain of our estimation
         x_space = np.linspace(-1, 1, self.num_points)
@@ -78,7 +79,7 @@ class DataLoad:
 
     # returns location of saved dataset
     def get_filename(self):
-        fname = "data/"+'data_'+str(self.center_point)+'_'+str(self.num_points)+'_'+str(self.scale)+'.npy'
+        fname = "data/"+'data_'+str(self.center_point)+'_'+str(self.num_points)+'_'+str(self.scale)+self.source[-3:]+'.npy'
         return fname
     
     # load data from filesystem
@@ -102,7 +103,11 @@ class DataLoad:
     # Returns values for given points, normalized coordinates (-1, 1)
     def load_values(self, normal_indices):
         indices = ((normal_indices+1.0)/2*(self.num_points-1)).astype(np.int)
-        return np.array([np.array([self.dataset[v[0],v[1]]]) for v in indices])
+        if len(indices)==0:
+            return np.array([])
+        else:
+            return np.array([np.array([self.dataset[v[0],v[1]]]) for v in indices])
+                    
 
 
 
