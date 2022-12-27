@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 
 from bayes_opt import *
 from conversions import m_to_deg
-from custom_logger import CustomLogger, LOGGER
+from custom_logger import CustomLogger, LOGGER # type: ignore
 from visualization import heatmap_comparison, plot_2D_vis, plot_variance
 from benchmarking import *
 import ee
@@ -14,7 +14,7 @@ import wandb
 # Parameters # TODO pass as args?
 # Import the MODIS dataset
 # dataset = ee.ImageCollection('MODIS/061/MOD13Q1')
-# Choose vegetation index band
+# Choose vegetation index band. For our datasets, either 'NDVI' or 'EVI'.
 veg_idx_band = 'NDVI'
 
 # Data load option
@@ -78,7 +78,7 @@ def basic_gp(dataloader, num_points, num_iter):
 
     # Bayesian optimization
     X_init = np.array([[0.2, 0.4], [0.6, -0.4], [0.9, 0.0]])
-    emukit_model = geographic_bayes_opt(dataloader, x_space, y_space, X_init, num_iter=num_iter)
+    emukit_model = geographic_bayes_opt(dataloader, x_space, y_space, X_init, num_iter, LOGGER.config)
     ground_truth = dataloader.load_data_local()
     ground_truth_reshaped = ground_truth.reshape(num_points ** 2, 1)
     mu_plot, var_plot = emukit_model.predict(x_plot)
@@ -93,6 +93,9 @@ def basic_gp(dataloader, num_points, num_iter):
         PSNR = psnr(mu_plot, ground_truth_reshaped),
         SSIM = ssim(mu_plot, ground_truth_reshaped)
     ))
+    # close plots
+    plt.close('all')
+    # TODO Use wandb.summary for these summary statistics instead?
 
     # Show results
     print("x_plot info:", x_plot.shape, np.min(x_plot), np.max(x_plot))
@@ -100,19 +103,66 @@ def basic_gp(dataloader, num_points, num_iter):
           np.min(mu_plot), np.max(mu_plot))
     print("y_plot info:", ground_truth.shape, np.min(ground_truth), np.max(ground_truth))
 
+
+def main():
+    center_point = np.array([[LOGGER.config["lat"], LOGGER.config["lon"]]])
+    dataloader = DataLoad(center_point, LOGGER.config["num_points"], LOGGER.config["scale"], veg_idx_band, data_load_type)
+    basic_gp(dataloader, LOGGER.config["num_points"], LOGGER.config["num_iter"])
+
+
 if __name__ == '__main__':
     print('Starting basic GP example')
+    # ee.Authenticate()
+    # wandb.login()
     # basic_gp_example(VI_at, num_points)
 
     config = dict(
         scale = 250,  # scale in meters
         num_points = 101,  # per direction
         num_points_plot = 101,
-        num_iter = 30,  # number of iterations
+        num_iter = 10,  # number of iterations
         lat = 45.77,
-        lon= 4.855
+        lon= 4.855,
+        variance=20.0,
+        lengthscale=0.08,
     )
-    LOGGER = CustomLogger(use_wandb=False, config=config)
-    center_point = np.array([[LOGGER.config["lat"], LOGGER.config["lon"]]])
-    dataloader = DataLoad(center_point, LOGGER.config["num_points"], LOGGER.config["scale"], veg_idx_band, data_load_type)
-    basic_gp(dataloader, LOGGER.config["num_points"], LOGGER.config["num_iter"])
+    # Define the kernel parameter search
+    sweep_config = {
+        'name': 'Kernel parameter search',
+        'method': 'random',
+        'metric': {
+            'name': 'L2',
+            'goal': 'minimize',
+        },
+    }
+    parameters_dict = {
+        # 'kernels': {
+        #     'values': ['rbf', 'matern']
+        # },
+        'variance': {
+            'distribution': 'uniform',
+            'min': 0,
+            'max': 50,
+            # 'values': np.linspace(0.0, 50.0, 10),
+        },
+        'lengthscale': {
+            'distribution': 'log_uniform_values',
+            'min': 10**(-5),
+            'max': 10**(5),
+            # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
+        },
+        'Matern_nu': {
+            'distribution': 'categorical',
+            'values': [0.5, 1.5, 2.5] #, np.inf],
+        }
+    }
+    sweep_config['parameters'] = parameters_dict
+    print("starting logger")
+    LOGGER: CustomLogger = CustomLogger(use_wandb=True, config=config)
+    if sweep_config:
+        # self.sweep_id = self._wandb_instance.sweep(sweep_config, project="sensor-placement", entity="camb-mphil")
+        LOGGER.sweep_id = LOGGER._wandb_instance.sweep(sweep_config, project="test-sensor-placement", entity="sepand")
+        print('sweep initialized')
+    main()
+    LOGGER._wandb_instance.agent(LOGGER.sweep_id, main, count=5)
+    # LOGGER.stop_run()

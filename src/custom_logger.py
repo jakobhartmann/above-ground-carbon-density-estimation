@@ -1,4 +1,4 @@
-from typing import Dict, Any, Mapping, List
+from typing import Dict, Any, Mapping, List, Union
 
 import matplotlib.figure
 import wandb
@@ -8,12 +8,18 @@ LOGGER = None
 
 
 class CustomLogger:
-    def __init__(self, use_wandb: bool, config: Dict[str, Any]):
+    def __init__(self, use_wandb: bool, config: Dict[str, Any], sweep_config: Union[Dict[str, Any], None]=None):
+        self.sweep_config: Union[Dict[str, Any], None] = sweep_config
+        self.sweep_id: Union[str, None] = None
         if use_wandb:
-            wandb.init(project="sensor-placement", entity="camb-mphil", config=config)
+            # wandb.init(project="sensor-placement", entity="camb-mphil", config=config)
+            wandb.init(project="test-sensor-placement", entity="sepand", config=config)
+            print('wandb initialized')
             self.config = wandb.config
+            self._wandb_instance = wandb
         else:
             self.config = config
+        print('logger started')
 
     def stop_run(self):
         if wandb.run is not None:
@@ -24,7 +30,7 @@ class CustomLogger:
         for key, val in data.items():
             if isinstance(val, Mapping):
                 # doesn't handle case where dict keys are not strings, so just don't use that stuff
-                data[key] = self._preprocess_log_dict(val)
+                data[key] = self._preprocess_log_dict_wandb(val)
             elif isinstance(val, matplotlib.figure.Figure):
                 data[key] = wandb.Image(val)
         return data
