@@ -16,6 +16,8 @@ from emukit.core.optimization.multi_source_acquisition_optimizer import MultiSou
 from emukit.core.optimization import gradient_acquisition_optimizer
 from emukit.core.loop.user_function import MultiSourceFunctionWrapper
 from emukit.bayesian_optimization.acquisitions.max_value_entropy_search import MUMBO
+from emukit.experimental_design.acquisitions import ModelVariance, IntegratedVarianceReduction
+
 # from emukit.test_functions.forrester import multi_fidelity_forrester_function
 from data import DataLoad
 from constants import *
@@ -107,7 +109,8 @@ class Cost(Acquisition):
     
     @property
     def has_gradients(self):
-        return True
+        # return True
+        return False # for ModelVariance
     
     def evaluate_with_gradients(self, x):
         return self.evaluate(x), np.zeros(x.shape)
@@ -138,10 +141,12 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     cost_acquisition = Cost([config[HIGH_FIDELITY_COST], config[LOW_FIDELITY_COST]])
     acquisition = MultiInformationSourceEntropySearch(emukit_model, space) / cost_acquisition
     mumbo_acquisition = MUMBO(emukit_model, space, num_samples=5, grid_size=500) / cost_acquisition
+    model_variance = ModelVariance(emukit_model) / cost_acquisition
+    integrated_variance_reduction = IntegratedVarianceReduction(emukit_model, space) / cost_acquisition
     # Create Outer Loop
     initial_loop_state = create_loop_state(X_init, Y_init)
     acquisition_optimizer = MultiSourceAcquisitionOptimizer(GradientAcquisitionOptimizer(space), space)
-    candidate_point_calculator = SequentialPointCalculator(mumbo_acquisition, acquisition_optimizer)
+    candidate_point_calculator = SequentialPointCalculator(model_variance, acquisition_optimizer)
     model_updater = FixedIntervalUpdater(emukit_model, config[OPTIMIZER_UPDATE_INTERVAL])
     loop = OuterLoop(candidate_point_calculator, model_updater, initial_loop_state)
 

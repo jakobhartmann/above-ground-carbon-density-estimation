@@ -69,7 +69,7 @@ def basic_gp_example_old(target_function, num_points, num_iter):
 
 
 # Do bayesian optimization over a given target function in 2 dimensions
-def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points, num_iter):
+def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points, num_iter, num_fidelities):
     # Setup the domain of our estimation
     x_space = np.linspace(-1, 1, num_points)
     y_space = np.linspace(-1, 1, num_points)
@@ -88,10 +88,18 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points, num
     X2_init = np.array([(0.4, 0.2, 1.0), (-0.4, 0.6, 1.0), (0.0, 0.9, 1.0)])
     emukit_model = mf_bayes_opt(dataloader_high, dataloader_low, x_space, y_space, X1_init, X2_init, num_iter=num_iter, config=LOGGER.config)
     ground_truth_high = dataloader_high.load_data_local()
+    ground_truth_high_reshaped = ground_truth_high.reshape(num_points ** 2, 1)
     ground_truth_low = dataloader_low.load_data_local()
 
     mu_plot_high, var_plot_high = emukit_model.predict(x_plot_high)
     mu_plot_low, var_plot_low = emukit_model.predict(x_plot_low)
+    std_plot_high = np.sqrt(var_plot_high)
+
+    idx_unseen = (x_plot_high[:, None] != emukit_model.X).any(-1).all(1)
+    x_unseen_high = x_plot_high[idx_unseen]
+    mu_unseen_high, var_unseen_high = emukit_model.predict(x_unseen_high)
+    std_unseen_high = np.sqrt(var_unseen_high)
+    ground_truth_unseen_high = ground_truth_high_reshaped[idx_unseen]
 
 
     LOGGER.log(dict(
@@ -99,7 +107,15 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points, num
         mean_plot_low=heatmap_comparison_mf(mu_plot_low, ground_truth_low, num_points, emukit_model, mf_choose=1.0),
         variance_plot_high=plot_variance(var_plot_high, num_points, emukit_model),
         variance_plot_low=plot_variance(var_plot_low, num_points, emukit_model),
-        test_performance=1.5
+        num_high_fidelity_samples = np.sum(emukit_model.X[:, 2] == 0) - len(X1_init),
+        num_low_fidelity_samples = np.sum(emukit_model.X[:, 2] == 1) - len(X2_init),
+        L1 = l1(mu_plot_high, ground_truth_high_reshaped),
+        L2 = l2(mu_plot_high, ground_truth_high_reshaped),
+        MSE = mse(mu_plot_high, ground_truth_high_reshaped),
+        MPDF_unseen = mpdf(mu_unseen_high, std_unseen_high, ground_truth_unseen_high),
+        MPDF_all = mpdf(mu_plot_high, std_plot_high, ground_truth_high_reshaped),
+        PSNR = psnr(mu_plot_high, ground_truth_high_reshaped),
+        SSIM = ssim(mu_plot_high, ground_truth_high_reshaped)
     ))
 
     # Show results
@@ -127,6 +143,13 @@ def basic_gp(dataloader, num_points, num_iter):
     ground_truth = dataloader.load_data_local()
     ground_truth_reshaped = ground_truth.reshape(num_points ** 2, 1)
     mu_plot, var_plot = emukit_model.predict(x_plot)
+    std_plot = np.sqrt(var_plot)
+
+    idx_unseen = (x_plot[:, None] != emukit_model.X).any(-1).all(1)
+    x_unseen = x_plot[idx_unseen]
+    mu_unseen, var_unseen = emukit_model.predict(x_unseen)
+    std_unseen = np.sqrt(var_unseen)
+    ground_truth_unseen = ground_truth_reshaped[idx_unseen]
 
     heatmap_plot = heatmap_comparison(mu_plot, ground_truth, num_points, emukit_model)
     variance_plot = plot_variance(var_plot, num_points, emukit_model)
@@ -139,6 +162,8 @@ def basic_gp(dataloader, num_points, num_iter):
     MSE = mse(mu_plot, ground_truth_reshaped)
     PSNR = psnr(mu_plot, ground_truth_reshaped)
     SSIM = ssim(mu_plot, ground_truth_reshaped)
+    MPDF_unseen = mpdf(mu_unseen, std_unseen, ground_truth_unseen)
+    MPDF_all = mpdf(mu_plot, std_plot, ground_truth_reshaped)
 
     LOGGER.log(dict(
         mean_plot = heatmap_plot,
@@ -151,7 +176,9 @@ def basic_gp(dataloader, num_points, num_iter):
         L2 = L2,
         MSE = MSE,
         PSNR = PSNR,
-        SSIM = SSIM
+        SSIM = SSIM,
+        MPDF_unseen = MPDF_unseen,
+        MPDF_all = MPDF_all,
     ))
     # close plots
     plt.close('all')
@@ -172,6 +199,7 @@ def main(use_wandb=True):
     # basic_gp_example(VI_at, num_points)
 
     config = dict(
+        num_fidelities=2,
         source = 'MODIS/061/MOD13Q1',
         source_low = 'MODIS/061/MOD13A2',
         scale=250,  # scale in meters
@@ -195,7 +223,7 @@ def main(use_wandb=True):
         OPTIMIZATION_RESTARTS: 0,
         OPTIMIZER_UPDATE_INTERVAL: 1,
         LOW_FIDELITY_COST: 1.0,
-        HIGH_FIDELITY_COST: 5.0,
+        HIGH_FIDELITY_COST: 2.0,
     })
     LOGGER = CustomLogger(use_wandb=use_wandb, config=config)
     center_point = np.array([[LOGGER.config["lat"], LOGGER.config["lon"]]])

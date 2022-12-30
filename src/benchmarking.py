@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.stats import norm
 
 def l1(bo_mean, ground_truth):
     return np.sum(np.abs(bo_mean - ground_truth))
@@ -10,6 +11,10 @@ def l2(bo_mean, ground_truth):
 
 def mse(bo_mean, ground_truth):
     return np.mean((bo_mean - ground_truth) ** 2)
+
+
+def mpdf(bo_mean, bo_std, ground_truth):
+    return np.mean(norm.pdf(ground_truth, bo_mean, bo_std))
 
 
 def psnr(bo_mean, ground_truth):
