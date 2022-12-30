@@ -2,7 +2,8 @@ from conversions import m_to_deg
 from visualization import heatmap_comparison
 import ee
 import numpy as np
-from os.path import exists
+from os.path import exists, join
+from os import getcwd
 
 class DataLoad:
     def __init__(self, source, center_point, num_points, scale, veg_idx_band, data_load_type):
@@ -98,6 +99,7 @@ class DataLoad:
     def save_data(self):
         assert(hasattr(self, 'dataset'))
         fname = self.get_filename()
+        print('Saving within this working directory: ', join(getcwd(), fname))
         np.save(fname, +self.dataset)
     
     # Returns values for given points, normalized coordinates (-1, 1)

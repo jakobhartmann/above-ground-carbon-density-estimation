@@ -1,5 +1,7 @@
+import matplotlib
+matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
-
+import argparse
 from bayes_opt import *
 from conversions import m_to_deg
 from custom_logger import CustomLogger, LOGGER # type: ignore
@@ -84,7 +86,7 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points, num
     X1_init = np.array([(0.2, 0.4, 0.0), (0.6, -0.4, 0.0), (0.9, 0.0, 0.0)])
     # X2_init = np.array([[0.2, 0.4, 1.0], [0.6, -0.4, 1.0], [0.9, 0.0, 1.0]])
     X2_init = np.array([(0.4, 0.2, 1.0), (-0.4, 0.6, 1.0), (0.0, 0.9, 1.0)])
-    emukit_model = mf_bayes_opt(dataloader_high, dataloader_low, x_space, y_space, X1_init, X2_init, num_iter=num_iter)
+    emukit_model = mf_bayes_opt(dataloader_high, dataloader_low, x_space, y_space, X1_init, X2_init, num_iter=num_iter, config=LOGGER.config)
     ground_truth_high = dataloader_high.load_data_local()
     ground_truth_low = dataloader_low.load_data_local()
 
@@ -120,20 +122,36 @@ def basic_gp(dataloader, num_points, num_iter):
 
     # Bayesian optimization
     X_init = np.array([[0.2, 0.4], [0.6, -0.4], [0.9, 0.0]])
+    # X_init = np.array([[0.2, 0.4], [0.6, -0.4], [0.9, 0.0], [-0.8, 0.8], [0.0, 0.7], [0.7, 0.5], [-0.8, -0.8], [-0.3, -0.7], [-0.1, 0.0]])
     emukit_model = geographic_bayes_opt(dataloader, x_space, y_space, X_init, num_iter, LOGGER.config)
     ground_truth = dataloader.load_data_local()
     ground_truth_reshaped = ground_truth.reshape(num_points ** 2, 1)
     mu_plot, var_plot = emukit_model.predict(x_plot)
 
+    heatmap_plot = heatmap_comparison(mu_plot, ground_truth, num_points, emukit_model)
+    variance_plot = plot_variance(var_plot, num_points, emukit_model)
+    # x_labels, y_labels = (emukit_model.X[:, 1] + 1) * num_points / 2, (emukit_model.X[:, 0] + 1) * num_points / 2
+    # close plots
+    plt.close('all')
+
+    L1 = l1(mu_plot, ground_truth_reshaped)
+    L2 = l2(mu_plot, ground_truth_reshaped)
+    MSE = mse(mu_plot, ground_truth_reshaped)
+    PSNR = psnr(mu_plot, ground_truth_reshaped)
+    SSIM = ssim(mu_plot, ground_truth_reshaped)
 
     LOGGER.log(dict(
-        mean_plot=heatmap_comparison(mu_plot, ground_truth, num_points, emukit_model),
-        variance_plot=plot_variance(var_plot, num_points, emukit_model),
-        L1 = l1(mu_plot, ground_truth_reshaped),
-        L2 = l2(mu_plot, ground_truth_reshaped),
-        MSE = mse(mu_plot, ground_truth_reshaped),
-        PSNR = psnr(mu_plot, ground_truth_reshaped),
-        SSIM = ssim(mu_plot, ground_truth_reshaped)
+        mean_plot = heatmap_plot,
+        variance_plot = variance_plot,
+        # TODO wandb.plots deprected. Change to wandb.plot
+        # mean = wandb.plots.HeatMap(x_labels=x_labels, y_labels=y_labels, matrix_values=mu_plot.reshape(num_points, num_points)),
+        # ground_truth = wandb.plots.HeatMap(x_labels=x_labels, y_labels=y_labels, matrix_values=ground_truth.reshape(num_points, num_points)),
+        # variance = wandb.plots.HeatMap(x_labels=x_labels, y_labels=y_labels, matrix_values=var_plot.reshape(num_points, num_points)),
+        L1 = L1,
+        L2 = L2,
+        MSE = MSE,
+        PSNR = PSNR,
+        SSIM = SSIM
     ))
     # close plots
     plt.close('all')
@@ -146,16 +164,8 @@ def basic_gp(dataloader, num_points, num_iter):
     print("y_plot info:", ground_truth.shape, np.min(ground_truth), np.max(ground_truth))
 
 
-def main():
-    center_point = np.array([[LOGGER.config["lat"], LOGGER.config["lon"]]])
-    dataloader_high_fidelity = DataLoad(LOGGER.config["source"], center_point, LOGGER.config["num_points"], LOGGER.config["scale"], veg_idx_band, data_load_type)
-    basic_gp(dataloader_high_fidelity, LOGGER.config["num_points"], LOGGER.config["num_iter"])
-
-    # dataloader2 = DataLoad(LOGGER.config["source_low"], center_point, LOGGER.config["num_points"], LOGGER.config["scale_low"], veg_idx_band, data_load_type)
-    # mf_gp(dataloader_high_fidelity, dataloader2, LOGGER.config["num_points"], LOGGER.config["num_iter"])
-    return
-
-if __name__ == '__main__':
+def main(use_wandb=True):
+    global LOGGER
     print('Starting basic GP example')
     # ee.Authenticate()
     # wandb.login()
@@ -165,18 +175,47 @@ if __name__ == '__main__':
         source = 'MODIS/061/MOD13Q1',
         source_low = 'MODIS/061/MOD13A2',
         scale=250,  # scale in meters
-        scale_low=250, # scale low fidelity
+        scale_low=1000, # scale low fidelity
         num_points = 101,  # per direction
         num_points_plot = 101,
-        num_iter = 10,  # number of iterations
+        num_iter = 30,  # number of iterations
         lat = 45.77,
-        lon= 4.855,
-        variance=20.0,
-        lengthscale=0.08,
+        lon = 4.855,
     )
+    config.update({
+        MATERN_LENGTHSCALE: 130,
+        MATERN_VARIANCE: 1.0,
+        RBF_LENGTHSCALE: 0.08,
+        RBF_VARIANCE: 20.0,
+        WHITE_VARIANCE: 20.0,
+        PERIODIC_LENGTHSCALE: 0.08,
+        PERIODIC_PERIOD: 1.0,
+        PERIODIC_VARIANCE: 20.0,
+        MODEL_NOISE_VARIANCE: 1e-13,
+        OPTIMIZATION_RESTARTS: 0,
+        OPTIMIZER_UPDATE_INTERVAL: 1,
+        LOW_FIDELITY_COST: 1.0,
+        HIGH_FIDELITY_COST: 5.0,
+    })
+    LOGGER = CustomLogger(use_wandb=use_wandb, config=config)
+    center_point = np.array([[LOGGER.config["lat"], LOGGER.config["lon"]]])
+    dataloader_high_fidelity = DataLoad(LOGGER.config["source"], center_point, LOGGER.config["num_points"], LOGGER.config["scale"], veg_idx_band, data_load_type)
+    # basic_gp(dataloader_high_fidelity, LOGGER.config["num_points"], LOGGER.config["num_iter"])
+
+    dataloader2 = DataLoad(LOGGER.config["source_low"], center_point, LOGGER.config["num_points"], LOGGER.config["scale_low"], veg_idx_band, data_load_type)
+    mf_gp(dataloader_high_fidelity, dataloader2, LOGGER.config["num_points"], LOGGER.config["num_iter"])
+    LOGGER.stop_run()
+    return
+
+if __name__ == '__main__':
+    # take in parameters from the command line
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--sweep', action='store_true')
+    args = parser.parse_args()
+
     # Define the kernel parameter search
     sweep_config = {
-        'name': 'Kernel parameter search',
+        'name': 'Kernel param search: random, matern only',
         'method': 'random',
         'metric': {
             'name': 'L2',
@@ -187,30 +226,71 @@ if __name__ == '__main__':
         # 'kernels': {
         #     'values': ['rbf', 'matern']
         # },
-        'variance': {
-            'distribution': 'uniform',
-            'min': 0,
-            'max': 50,
-            # 'values': np.linspace(0.0, 50.0, 10),
-        },
-        'lengthscale': {
-            'distribution': 'log_uniform_values',
-            'min': 10**(-5),
-            'max': 10**(5),
+        # RBF_LENGTHSCALE: {
+        #     'distribution': 'log_uniform_values', # or 'uniform',
+        #     'min': 10**(-3),
+        #     'max': 10**(3),
+        #     # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
+        # },
+        # RBF_VARIANCE: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-1),
+        #     'max': 10**2,
+        #     # 'values': np.linspace(0.0, 50.0, 10),
+        # },
+        MATERN_LENGTHSCALE: {
+            'distribution': 'log_uniform_values', # or 'uniform',
+            'min': 10**(-3),
+            'max': 10**(3),
             # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
         },
-        'Matern_nu': {
-            'distribution': 'categorical',
-            'values': [0.5, 1.5, 2.5] #, np.inf],
-        }
+        # MATERN_VARIANCE: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-1),
+        #     'max': 10**2,
+        #     # 'values': np.linspace(0.0, 50.0, 10),
+        # },
+        # 'Matern_nu': {
+        #     'distribution': 'categorical',
+        #     'values': [0.5, 1.5, 2.5] #, np.inf],
+        # },
+        # WHITE_VARIANCE: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-2),
+        #     'max': 10**2,
+        # },
+        # PERIODIC_LENGTHSCALE: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-3),
+        #     'max': 10**(3),
+        # },
+        # PERIODIC_PERIOD: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-2),
+        #     'max': 10**2,
+        # },
+        # PERIODIC_VARIANCE: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-2),
+        #     'max': 10**2,
+        # },
+        # MODEL_NOISE_VARIANCE: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-10),
+        #     'max': 10**1,
+        # },
+        # OPTIMIZATION_RESTARTS: {
+        #     'distribution': 'categorical',
+        #     'values': [1, 5, 10],
+        # },
     }
     sweep_config['parameters'] = parameters_dict
     print("starting logger")
-    LOGGER: CustomLogger = CustomLogger(use_wandb=True, config=config)
-    if sweep_config:
-        # self.sweep_id = self._wandb_instance.sweep(sweep_config, project="sensor-placement", entity="camb-mphil")
-        LOGGER.sweep_id = LOGGER._wandb_instance.sweep(sweep_config, project="test-sensor-placement", entity="sepand")
+    if sweep_config and args.sweep:
+        sweep_id = wandb.sweep(sweep_config, project="sensor-placement", entity="camb-mphil")
+        # sweep_id = wandb.sweep(sweep_config, project="test-sensor-placement", entity="sepand")
         print('sweep initialized')
-    main()
-    LOGGER._wandb_instance.agent(LOGGER.sweep_id, main, count=5)
-    # LOGGER.stop_run()
+        wandb.agent(sweep_id, main, count=20)
+    else:
+        main(use_wandb=False)
+

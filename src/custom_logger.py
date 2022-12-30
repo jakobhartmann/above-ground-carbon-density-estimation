@@ -10,10 +10,9 @@ LOGGER = None
 class CustomLogger:
     def __init__(self, use_wandb: bool, config: Dict[str, Any], sweep_config: Union[Dict[str, Any], None]=None):
         self.sweep_config: Union[Dict[str, Any], None] = sweep_config
-        self.sweep_id: Union[str, None] = None
         if use_wandb:
             # wandb.init(project="sensor-placement", entity="camb-mphil", config=config)
-            wandb.init(project="test-sensor-placement", entity="sepand", config=config)
+            self._wandb_run = wandb.init(project="test-sensor-placement", entity="sepand", config=config)
             print('wandb initialized')
             self.config = wandb.config
             self._wandb_instance = wandb
@@ -31,8 +30,8 @@ class CustomLogger:
             if isinstance(val, Mapping):
                 # doesn't handle case where dict keys are not strings, so just don't use that stuff
                 data[key] = self._preprocess_log_dict_wandb(val)
-            elif isinstance(val, matplotlib.figure.Figure):
-                data[key] = wandb.Image(val)
+            # elif isinstance(val, matplotlib.figure.Figure):
+            #     data[key] = wandb.Image(val)
         return data
 
     def _print_and_show_log_dict(self, data: Mapping, prefix: List[str] = []):
@@ -42,6 +41,7 @@ class CustomLogger:
                 self._print_and_show_log_dict(val, prefix + [key])
             elif isinstance(val, matplotlib.figure.Figure):
                 val.savefig("results/" + ".".join(prefix + [key]) + ".png")
+                print("Showing plots")
                 val.show()
             else:
                 print(" " * len(prefix) + key + ":" + str(val))
@@ -50,4 +50,7 @@ class CustomLogger:
         if wandb.run is None:
             self._print_and_show_log_dict(data)
         else:
-            wandb.log(self._preprocess_log_dict_wandb(data))
+            print("Preprocessing data for wandb")
+            data = self._preprocess_log_dict_wandb(data)
+            print(data)
+            wandb.log(data)

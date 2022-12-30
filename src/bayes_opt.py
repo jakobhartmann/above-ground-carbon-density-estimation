@@ -16,10 +16,9 @@ from emukit.core.optimization.multi_source_acquisition_optimizer import MultiSou
 from emukit.core.optimization import gradient_acquisition_optimizer
 from emukit.core.loop.user_function import MultiSourceFunctionWrapper
 from emukit.bayesian_optimization.acquisitions.max_value_entropy_search import MUMBO
-
 # from emukit.test_functions.forrester import multi_fidelity_forrester_function
 from data import DataLoad
-
+from constants import *
 
 def geographic_bayes_opt_no_dataloader(target_function, x_space, y_space, X_init, num_iter=10):
     space = ParameterSpace([DiscreteParameter('x', x_space),
@@ -57,26 +56,27 @@ def geographic_bayes_opt(dataloader:'DataLoad', x_space, y_space, X_init, num_it
     # RBF_var = 20
     # RBF_lengthscale = 0.08
 
-    k1 = GPy.kern.RBF(input_dim=2, lengthscale=0.08, variance=20)
-    k2 = GPy.kern.Matern32(input_dim=2, lengthscale=config.lengthscale, variance=config.variance)
-    k3 = GPy.kern.StdPeriodic(input_dim=2, lengthscale=0.08, variance=20, period=1)
-    k4 = GPy.kern.White(input_dim=2, variance=0.01)
+    k1 = GPy.kern.RBF(input_dim=2, lengthscale=config[RBF_LENGTHSCALE], variance=config[RBF_VARIANCE])
+    k2 = GPy.kern.Matern32(input_dim=2, lengthscale=config[MATERN_LENGTHSCALE], variance=config[MATERN_VARIANCE])
+    k3 = GPy.kern.StdPeriodic(input_dim=2, lengthscale=config[PERIODIC_LENGTHSCALE], variance=config[PERIODIC_VARIANCE], period=config[PERIODIC_PERIOD])
+    k4 = GPy.kern.White(input_dim=2, variance=config[WHITE_VARIANCE])
     
     # product of kernels
-    k_prod = k1 * k2
-    k_prod.plot()
+    k_prod = k2 * k3 * k4
+    # k_prod.plot()
 
     # Sum of kernels
-    k_add = k1 + k2
-    k_add.plot()
+    k_add = k2 + k3 + k4
+    # k_add.plot()
     # hierarchic_comb = GPy.kern.Hierarchical(kern)
 
     # final kernel selected
     kern = k2
-    print(kern.name)
+    # print(kern.name)
 
-    gpy_model = GPy.models.GPRegression(X_init, Y_init, kern, noise_var=1e-10)
-    emukit_model = GPyModelWrapper(gpy_model)
+    gpy_model = GPy.models.GPRegression(X_init, Y_init, kern, noise_var=config[MODEL_NOISE_VARIANCE])
+    # gpy_model = GPy.models.GPRegressionGrid(X_init, Y_init, kern)
+    emukit_model = GPyModelWrapper(gpy_model, n_restarts=config[OPTIMIZATION_RESTARTS])
 
     us_acquisition = ModelVariance(emukit_model)
     ivr_acquisition = IntegratedVarianceReduction(emukit_model, space)
@@ -112,7 +112,7 @@ class Cost(Acquisition):
     def evaluate_with_gradients(self, x):
         return self.evaluate(x), np.zeros(x.shape)
 
-def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_space, X1_init, X2_init, num_iter=10, num_fidelities=2, low_fidelity_cost=1, high_fidelity_cost=5):
+def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_space, X1_init, X2_init, num_iter=10, num_fidelities=2, low_fidelity_cost=1, high_fidelity_cost=5, config=None):
     space = ParameterSpace([DiscreteParameter('x', x_space),
                             DiscreteParameter('y', y_space),
                             InformationSourceParameter(num_fidelities)])
@@ -122,28 +122,27 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     Y_init = np.concatenate((Y1_init, Y2_init))
     X_init = np.concatenate((X1_init, X2_init))
 
-    
 
-    kernels = [GPy.kern.RBF(input_dim=2, lengthscale=0.1, variance=20.0),GPy.kern.RBF(input_dim=2, lengthscale=3, variance=20.0)]
+    kernels = [GPy.kern.RBF(input_dim=2, lengthscale=0.1, variance=20.0), GPy.kern.RBF(input_dim=2, lengthscale=3, variance=20.0)]
     # kern = GPy.kern.RBF(input_dim=2, lengthscale=0.08, variance=20)
     linear_mf_kernel = LinearMultiFidelityKernel(kernels)
     gpy_linear_mf_model = GPyLinearMultiFidelityModel(X_init, Y_init, linear_mf_kernel, n_fidelities = num_fidelities)
     gpy_linear_mf_model.mixed_noise.Gaussian_noise.fix(0)
     gpy_linear_mf_model.mixed_noise.Gaussian_noise_1.fix(0)
     
-    emukit_model = GPyMultiOutputWrapper(gpy_linear_mf_model, num_fidelities+1, n_optimization_restarts=1, verbose_optimization=True)
+    emukit_model = GPyMultiOutputWrapper(gpy_linear_mf_model, num_fidelities+1, n_optimization_restarts=config[OPTIMIZATION_RESTARTS], verbose_optimization=True)
 
     emukit_model.optimize()
 
     # Acquisition function
-    cost_acquisition = Cost([high_fidelity_cost,low_fidelity_cost, ])
+    cost_acquisition = Cost([config[HIGH_FIDELITY_COST], config[LOW_FIDELITY_COST]])
     acquisition = MultiInformationSourceEntropySearch(emukit_model, space) / cost_acquisition
     mumbo_acquisition = MUMBO(emukit_model, space, num_samples=5, grid_size=500) / cost_acquisition
     # Create Outer Loop
     initial_loop_state = create_loop_state(X_init, Y_init)
     acquisition_optimizer = MultiSourceAcquisitionOptimizer(GradientAcquisitionOptimizer(space), space)
     candidate_point_calculator = SequentialPointCalculator(mumbo_acquisition, acquisition_optimizer)
-    model_updater = FixedIntervalUpdater(emukit_model)
+    model_updater = FixedIntervalUpdater(emukit_model, config[OPTIMIZER_UPDATE_INTERVAL])
     loop = OuterLoop(candidate_point_calculator, model_updater, initial_loop_state)
 
     # loop.iteration_end_event.append(plot_acquisition)
