@@ -53,7 +53,7 @@ def plot_2D_vis_mf(results, num_points, emukit_model, axes, axis_idx, min_val, m
     plot = axes[axis_idx].imshow(results.reshape(num_points, num_points),
                           vmin=min_val, vmax=max_val)
     # get points from wanted fidelity
-    points_indices = [emukit_model.X[:,2]==mf_choose]
+    points_indices = emukit_model.X[:,2]==mf_choose
 
     plot_points_X = emukit_model.X[points_indices]
     plot_points_Y = emukit_model.Y[points_indices]
