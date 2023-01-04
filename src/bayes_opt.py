@@ -23,6 +23,29 @@ from data import DataLoad
 from constants import *
 from custom_loop import CustomLoop
 
+def kernel(config):
+    print("Using kernels: ", config[KERNELS], " with combination: ", config[KERNEL_COMBINATION])
+    combination = []
+    if RBF in config[KERNELS].lower():
+        combination.append(GPy.kern.RBF(input_dim=2, lengthscale=config[RBF_LENGTHSCALE], variance=config[RBF_VARIANCE]))
+    if WHITE in config[KERNELS]:
+        combination.append(GPy.kern.White(input_dim=2, variance=config[WHITE_VARIANCE]))
+    if PERIODIC in config[KERNELS]:
+        combination.append(GPy.kern.StdPeriodic(input_dim=2, lengthscale=config[PERIODIC_LENGTHSCALE], period=config[PERIODIC_PERIOD], variance=config[PERIODIC_VARIANCE]))
+    if MATERN32 in config[KERNELS]:
+        combination.append(GPy.kern.Matern32(input_dim=2, lengthscale=config[MATERN32_LENGTHSCALE], variance=config[MATERN32_VARIANCE]))
+    
+    # Return first kernel if only one kernel is used
+    if len(combination) == 1:
+        return combination[0]
+
+    if config[KERNEL_COMBINATION] == PRODUCT:
+        return GPy.kern.Prod(combination)
+    elif config[KERNEL_COMBINATION] == SUM:
+        return GPy.kern.Add(combination)
+    else:
+         # Default to sum.
+        return GPy.kern.Add(combination)
 
 def geographic_bayes_opt_no_dataloader(target_function, x_space, y_space, X_init, num_iter=10):
     space = ParameterSpace([DiscreteParameter('x', x_space),
@@ -66,23 +89,9 @@ def geographic_bayes_opt(dataloader:'DataLoad', x_space, y_space, X_init, logger
     ground_truth = dataloader.load_data_local()
     ground_truth_reshaped = ground_truth.reshape(dataloader.num_points ** 2, 1)
 
-    # Define kernels
-    k1 = GPy.kern.RBF(input_dim=2, lengthscale=config[RBF_LENGTHSCALE], variance=config[RBF_VARIANCE])
-    k2 = GPy.kern.Matern32(input_dim=2, lengthscale=config[MATERN_LENGTHSCALE], variance=config[MATERN_VARIANCE])
-    k3 = GPy.kern.StdPeriodic(input_dim=2, lengthscale=config[PERIODIC_LENGTHSCALE], variance=config[PERIODIC_VARIANCE], period=config[PERIODIC_PERIOD])
-    k4 = GPy.kern.White(input_dim=2, variance=config[WHITE_VARIANCE])
-    
-    # product of kernels
-    k_prod = k2 * k3 * k4
-    # k_prod.plot()
-
-    # Sum of kernels
-    k_add = k2 + k3 + k4
-    # k_add.plot()
-    # hierarchic_comb = GPy.kern.Hierarchical(kern)
-
     # final kernel selected
-    kern = k2
+    kern = kernel(config)
+    # kern.plot()
     # print(kern.name)
 
     gpy_model = GPy.models.GPRegression(X_init, Y_init, kern, noise_var=config[MODEL_NOISE_VARIANCE])
@@ -165,8 +174,7 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     ground_truth_high_reshaped = ground_truth_high.reshape(dataloader1.num_points ** 2, 1)
 
 
-    kernels = [GPy.kern.RBF(input_dim=2, lengthscale=0.1, variance=20.0), GPy.kern.RBF(input_dim=2, lengthscale=3, variance=20.0)]
-    # kern = GPy.kern.RBF(input_dim=2, lengthscale=0.08, variance=20)
+    kernels = [kernel(config), kernel(config)] # NOTE: This list must be in order of low to high fidelity
     linear_mf_kernel = LinearMultiFidelityKernel(kernels)
     gpy_linear_mf_model = GPyLinearMultiFidelityModel(X_init, Y_init, linear_mf_kernel, n_fidelities=config[NUM_FIDELITIES])
     gpy_linear_mf_model.mixed_noise.Gaussian_noise.fix(0)

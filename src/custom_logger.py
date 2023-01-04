@@ -1,7 +1,6 @@
 from typing import Dict, Any, Mapping, List, Union
 
 import matplotlib.figure
-from matplotlib import pyplot as plt
 import wandb
 from benchmarking import calc_metrics
 
@@ -44,7 +43,7 @@ class CustomLogger:
             elif isinstance(val, matplotlib.figure.Figure):
                 val.savefig("results/" + ".".join(prefix + [key]) + ".png")
                 print("Showing plots")
-                # plt.figure(val.number)
+                # val = plt.figure(val.number)
                 # val.canvas.draw()
                 val.show()
             else:

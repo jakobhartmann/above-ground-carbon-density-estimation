@@ -1,5 +1,4 @@
 from conversions import m_to_deg
-from visualization import heatmap_comparison
 import ee
 import numpy as np
 from os.path import exists, join

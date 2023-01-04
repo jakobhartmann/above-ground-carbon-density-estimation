@@ -1,6 +1,3 @@
-import matplotlib
-# matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 import argparse
 import ee
 import numpy as np
@@ -100,10 +97,10 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points):
 
     # Log summary of results
     LOGGER.log(dict(
-        mean_plot_high=heatmap_comparison_mf(mu_plot_high, ground_truth_high, num_points, emukit_model, mf_choose=0.0),
-        mean_plot_low=heatmap_comparison_mf(mu_plot_low, ground_truth_low, num_points, emukit_model, mf_choose=1.0),
-        variance_plot_high=plot_variance(var_plot_high, num_points, emukit_model),
-        variance_plot_low=plot_variance(var_plot_low, num_points, emukit_model),
+        mean_plot_high=heatmap_comparison_mf(mu_plot_high, ground_truth_high, num_points, emukit_model, mf_choose=0.0, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
+        mean_plot_low=heatmap_comparison_mf(mu_plot_low, ground_truth_low, num_points, emukit_model, mf_choose=1.0, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
+        variance_plot_high=plot_variance(var_plot_high, num_points, emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
+        variance_plot_low=plot_variance(var_plot_low, num_points, emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
         num_high_fidelity_samples = np.sum(emukit_model.X[:, 2] == 0) - len(X1_init),
         num_low_fidelity_samples = np.sum(emukit_model.X[:, 2] == 1) - len(X2_init),
     ))
@@ -148,8 +145,8 @@ def basic_gp(dataloader, num_points):
     std_unseen = np.sqrt(var_unseen)
     ground_truth_unseen = ground_truth_reshaped[idx_unseen]
 
-    heatmap_plot = heatmap_comparison(mu_plot, ground_truth, num_points, emukit_model)
-    variance_plot = plot_variance(var_plot, num_points, emukit_model)
+    heatmap_plot = heatmap_comparison(mu_plot, ground_truth, num_points, emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND])
+    variance_plot = plot_variance(var_plot, num_points, emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND])
     # x_labels, y_labels = (emukit_model.X[:, 1] + 1) * num_points / 2, (emukit_model.X[:, 0] + 1) * num_points / 2
     # plt.close('all')
 
@@ -194,9 +191,11 @@ def main(use_wandb=True):
     )
     config.update({
         NUM_FIDELITIES: 2,
-        NUM_ITER: 10,
-        MATERN_LENGTHSCALE: 130,
-        MATERN_VARIANCE: 1.0,
+        NUM_ITER: 30,
+        KERNELS: MATERN32,
+        KERNEL_COMBINATION: SUM,
+        MATERN32_LENGTHSCALE: 130,
+        MATERN32_VARIANCE: 1.0,
         RBF_LENGTHSCALE: 0.08,
         RBF_VARIANCE: 20.0,
         WHITE_VARIANCE: 20.0,
@@ -208,10 +207,10 @@ def main(use_wandb=True):
         OPTIMIZER_UPDATE_INTERVAL: 1,
         LOW_FIDELITY_COST: 1.0,
         HIGH_FIDELITY_COST: 2.0,
+        MATPLOTLIB_BACKEND: 'Agg' if use_wandb else '', # set this to 'Agg' or another non-gui backend for wandb runs
     })
     global LOGGER
     LOGGER = CustomLogger(use_wandb=use_wandb, config=config)
-    print("LOGGER.config:", LOGGER.config)
     center_point = np.array([[LOGGER.config["lat"], LOGGER.config["lon"]]])
     dataloader_high_fidelity = DataLoad(LOGGER.config["source"], center_point, LOGGER.config["num_points"], LOGGER.config["scale"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
     # basic_gp(dataloader_high_fidelity, LOGGER.config["num_points"])
@@ -237,8 +236,11 @@ if __name__ == '__main__':
         },
     }
     parameters_dict = {
-        # 'kernels': {
-        #     'values': ['rbf', 'matern']
+        # KERNELS: {
+        #     'values': [RBF, MATERN32, PERIODIC, WHITE, EXPONENTIAL, RBF+SEPARATOR+PERIODIC+SEPARATOR+WHITE, MATERN32+SEPARATOR+PERIODIC+SEPARATOR+WHITE],
+        # },
+        # KERNEL_COMBINATION: {
+        #     'values': [PRODUCT, SUM, ''],
         # },
         # RBF_LENGTHSCALE: {
         #     'distribution': 'log_uniform_values', # or 'uniform',
@@ -252,13 +254,13 @@ if __name__ == '__main__':
         #     'max': 10**2,
         #     # 'values': np.linspace(0.0, 50.0, 10),
         # },
-        MATERN_LENGTHSCALE: {
+        MATERN32_LENGTHSCALE: {
             'distribution': 'log_uniform_values', # or 'uniform',
             'min': 10**(-3),
             'max': 10**(3),
             # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
         },
-        # MATERN_VARIANCE: {
+        # MATERN32_VARIANCE: {
         #     'distribution': 'log_uniform_values',
         #     'min': 10**(-1),
         #     'max': 10**2,

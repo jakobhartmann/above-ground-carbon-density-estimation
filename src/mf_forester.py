@@ -1,6 +1,5 @@
 from bayes_opt import *
 from conversions import m_to_deg
-from visualization import heatmap_comparison
 import ee
 import numpy as np
 np.random.seed(20)
