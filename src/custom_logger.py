@@ -1,14 +1,16 @@
 from typing import Dict, Any, Mapping, List, Union
 
 import matplotlib.figure
-import wandb
 from matplotlib import pyplot as plt
+import wandb
+from benchmarking import calc_metrics
 
 LOGGER = None
 
 
 class CustomLogger:
-    def __init__(self, use_wandb: bool, config: Dict[str, Any], sweep_config: Union[Dict[str, Any], None]=None):
+    def __init__(self, use_wandb: bool, config: Dict[str, Any], sweep_config: Union[Dict[str, Any], None]=None, *args, **kwargs):
+        # NOTE: this is a hack to get around the fact that wandb.init() can't be called twice in the same process
         self.sweep_config: Union[Dict[str, Any], None] = sweep_config
         if use_wandb:
             # wandb.init(project="sensor-placement", entity="camb-mphil", config=config)
@@ -42,6 +44,8 @@ class CustomLogger:
             elif isinstance(val, matplotlib.figure.Figure):
                 val.savefig("results/" + ".".join(prefix + [key]) + ".png")
                 print("Showing plots")
+                # plt.figure(val.number)
+                # val.canvas.draw()
                 val.show()
             else:
                 print(" " * len(prefix) + key + ":" + str(val))
@@ -54,3 +58,17 @@ class CustomLogger:
             data = self._preprocess_log_dict_wandb(data)
             print(data)
             wandb.log(data)
+
+    def log_metrics(self, ground_truth_reshaped, mu_plot, std_plot, mu_unseen, std_unseen, ground_truth_unseen):
+        L1, L2, MSE, PSNR, SSIM, MPDF_unseen, MPDF_all = calc_metrics(mu_plot, std_plot, ground_truth_reshaped, mu_unseen, std_unseen, ground_truth_unseen)
+
+        self.log(dict(
+            L1 = L1,
+            L2 = L2,
+            MSE = MSE,
+            PSNR = PSNR,
+            SSIM = SSIM,
+            MPDF_unseen = MPDF_unseen,
+            MPDF_all = MPDF_all,
+        ))
+

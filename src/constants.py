@@ -7,6 +7,8 @@ LOW = 'low'
 HIGH = 'high'
 FIDELITY = 'fidelity'
 COST = 'cost'
+NUM_ITER = 'num_iter'
+NUM_FIDELITIES = 'num_fidelities'
 
 # Kernels
 MATERN = 'matern'

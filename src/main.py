@@ -1,27 +1,17 @@
 import matplotlib
-matplotlib.use('Agg') 
+# matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import argparse
-from bayes_opt import *
-from conversions import m_to_deg
-from custom_logger import CustomLogger, LOGGER # type: ignore
-from visualization import *
-from benchmarking import *
 import ee
 import numpy as np
 np.random.seed(20)
 from data import DataLoad
 import wandb
 
-# Parameters # TODO pass as args?
-# Import the MODIS dataset
-# dataset = ee.ImageCollection('MODIS/061/MOD13Q1')
-# Choose vegetation index band. For our datasets, either 'NDVI' or 'EVI'.
-veg_idx_band = 'NDVI'
+from bayes_opt import *
+from visualization import *
+from custom_logger import CustomLogger
 
-# Data load option
-#   'api', 'local' or 'optimal'(takes local if exist)
-data_load_type = 'optimal'
 
 # Function that provides vegetation index, using parameters above
 # NOTE: Function is not provided with values as paramters to simplify further refactoring for the data pipeline
@@ -68,8 +58,9 @@ def basic_gp_example_old(target_function, num_points, num_iter):
     heatmap_comparison(mu_plot, ground_truth, num_points, emukit_model)
 
 
+
 # Do bayesian optimization over a given target function in 2 dimensions
-def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points, num_iter, num_fidelities):
+def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points):
     # Setup the domain of our estimation
     x_space = np.linspace(-1, 1, num_points)
     y_space = np.linspace(-1, 1, num_points)
@@ -81,27 +72,33 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points, num
     dataloader_high.load_data()
     dataloader_low.load_data()
 
-
     # Bayesian optimization
     X1_init = np.array([(0.2, 0.4, 0.0), (0.6, -0.4, 0.0), (0.9, 0.0, 0.0)])
     # X2_init = np.array([[0.2, 0.4, 1.0], [0.6, -0.4, 1.0], [0.9, 0.0, 1.0]])
     X2_init = np.array([(0.4, 0.2, 1.0), (-0.4, 0.6, 1.0), (0.0, 0.9, 1.0)])
-    emukit_model = mf_bayes_opt(dataloader_high, dataloader_low, x_space, y_space, X1_init, X2_init, num_iter=num_iter, config=LOGGER.config)
-    ground_truth_high = dataloader_high.load_data_local()
-    ground_truth_high_reshaped = ground_truth_high.reshape(num_points ** 2, 1)
-    ground_truth_low = dataloader_low.load_data_local()
+    emukit_model = mf_bayes_opt(dataloader_high, dataloader_low, x_space, y_space, X1_init, X2_init, logger=LOGGER)
 
+    # Get predictions
     mu_plot_high, var_plot_high = emukit_model.predict(x_plot_high)
     mu_plot_low, var_plot_low = emukit_model.predict(x_plot_low)
     std_plot_high = np.sqrt(var_plot_high)
 
+    # Ground truth data
+    ground_truth_high = dataloader_high.load_data_local()
+    ground_truth_high_reshaped = ground_truth_high.reshape(num_points ** 2, 1)
+    ground_truth_low = dataloader_low.load_data_local()
+
+    # Separate unseen data for special metrics
     idx_unseen = (x_plot_high[:, None] != emukit_model.X).any(-1).all(1)
     x_unseen_high = x_plot_high[idx_unseen]
     mu_unseen_high, var_unseen_high = emukit_model.predict(x_unseen_high)
     std_unseen_high = np.sqrt(var_unseen_high)
     ground_truth_unseen_high = ground_truth_high_reshaped[idx_unseen]
 
+    # High fidelity metrics
+    LOGGER.log_metrics(ground_truth_high_reshaped, mu_plot_high, std_plot_high, mu_unseen_high, std_unseen_high, ground_truth_unseen_high)
 
+    # Log summary of results
     LOGGER.log(dict(
         mean_plot_high=heatmap_comparison_mf(mu_plot_high, ground_truth_high, num_points, emukit_model, mf_choose=0.0),
         mean_plot_low=heatmap_comparison_mf(mu_plot_low, ground_truth_low, num_points, emukit_model, mf_choose=1.0),
@@ -109,14 +106,8 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points, num
         variance_plot_low=plot_variance(var_plot_low, num_points, emukit_model),
         num_high_fidelity_samples = np.sum(emukit_model.X[:, 2] == 0) - len(X1_init),
         num_low_fidelity_samples = np.sum(emukit_model.X[:, 2] == 1) - len(X2_init),
-        L1 = l1(mu_plot_high, ground_truth_high_reshaped),
-        L2 = l2(mu_plot_high, ground_truth_high_reshaped),
-        MSE = mse(mu_plot_high, ground_truth_high_reshaped),
-        MPDF_unseen = mpdf(mu_unseen_high, std_unseen_high, ground_truth_unseen_high),
-        MPDF_all = mpdf(mu_plot_high, std_plot_high, ground_truth_high_reshaped),
-        PSNR = psnr(mu_plot_high, ground_truth_high_reshaped),
-        SSIM = ssim(mu_plot_high, ground_truth_high_reshaped)
     ))
+    # plt.close('all')
 
     # Show results
     print("x_plot info:", x_plot_high.shape, np.min(x_plot_high), np.max(x_plot_high))
@@ -126,7 +117,8 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points, num
 
 
 # Do bayesian optimization over a given target function in 2 dimensions
-def basic_gp(dataloader, num_points, num_iter):
+def basic_gp(dataloader, num_points):
+    print('Starting basic GP example')
     # Setup the domain of our estimation
     x_space = np.linspace(-1, 1, num_points)
     y_space = np.linspace(-1, 1, num_points)
@@ -136,15 +128,20 @@ def basic_gp(dataloader, num_points, num_iter):
     # Load Data Pipeline
     dataloader.load_data()
 
-    # Bayesian optimization
+    # Bayesian optimization setup
     X_init = np.array([[0.2, 0.4], [0.6, -0.4], [0.9, 0.0]])
     # X_init = np.array([[0.2, 0.4], [0.6, -0.4], [0.9, 0.0], [-0.8, 0.8], [0.0, 0.7], [0.7, 0.5], [-0.8, -0.8], [-0.3, -0.7], [-0.1, 0.0]])
-    emukit_model = geographic_bayes_opt(dataloader, x_space, y_space, X_init, num_iter, LOGGER.config)
-    ground_truth = dataloader.load_data_local()
-    ground_truth_reshaped = ground_truth.reshape(num_points ** 2, 1)
+    emukit_model = geographic_bayes_opt(dataloader, x_space, y_space, X_init, logger=LOGGER)
+
+    # Get predictions
     mu_plot, var_plot = emukit_model.predict(x_plot)
     std_plot = np.sqrt(var_plot)
 
+    # Get ground truth
+    ground_truth = dataloader.load_data_local()
+    ground_truth_reshaped = ground_truth.reshape(num_points ** 2, 1)
+
+    # Separate unseen data for special metrics
     idx_unseen = (x_plot[:, None] != emukit_model.X).any(-1).all(1)
     x_unseen = x_plot[idx_unseen]
     mu_unseen, var_unseen = emukit_model.predict(x_unseen)
@@ -154,17 +151,13 @@ def basic_gp(dataloader, num_points, num_iter):
     heatmap_plot = heatmap_comparison(mu_plot, ground_truth, num_points, emukit_model)
     variance_plot = plot_variance(var_plot, num_points, emukit_model)
     # x_labels, y_labels = (emukit_model.X[:, 1] + 1) * num_points / 2, (emukit_model.X[:, 0] + 1) * num_points / 2
-    # close plots
-    plt.close('all')
+    # plt.close('all')
 
-    L1 = l1(mu_plot, ground_truth_reshaped)
-    L2 = l2(mu_plot, ground_truth_reshaped)
-    MSE = mse(mu_plot, ground_truth_reshaped)
-    PSNR = psnr(mu_plot, ground_truth_reshaped)
-    SSIM = ssim(mu_plot, ground_truth_reshaped)
-    MPDF_unseen = mpdf(mu_unseen, std_unseen, ground_truth_unseen)
-    MPDF_all = mpdf(mu_plot, std_plot, ground_truth_reshaped)
+    # Metrics
+    LOGGER.log_metrics(ground_truth_reshaped, mu_plot, std_plot, mu_unseen, std_unseen, ground_truth_unseen)
 
+
+    # Log summary of results
     LOGGER.log(dict(
         mean_plot = heatmap_plot,
         variance_plot = variance_plot,
@@ -172,17 +165,7 @@ def basic_gp(dataloader, num_points, num_iter):
         # mean = wandb.plots.HeatMap(x_labels=x_labels, y_labels=y_labels, matrix_values=mu_plot.reshape(num_points, num_points)),
         # ground_truth = wandb.plots.HeatMap(x_labels=x_labels, y_labels=y_labels, matrix_values=ground_truth.reshape(num_points, num_points)),
         # variance = wandb.plots.HeatMap(x_labels=x_labels, y_labels=y_labels, matrix_values=var_plot.reshape(num_points, num_points)),
-        L1 = L1,
-        L2 = L2,
-        MSE = MSE,
-        PSNR = PSNR,
-        SSIM = SSIM,
-        MPDF_unseen = MPDF_unseen,
-        MPDF_all = MPDF_all,
     ))
-    # close plots
-    plt.close('all')
-    # TODO Use wandb.summary for these summary statistics instead?
 
     # Show results
     print("x_plot info:", x_plot.shape, np.min(x_plot), np.max(x_plot))
@@ -192,25 +175,26 @@ def basic_gp(dataloader, num_points, num_iter):
 
 
 def main(use_wandb=True):
-    global LOGGER
-    print('Starting basic GP example')
     # ee.Authenticate()
     # wandb.login()
     # basic_gp_example(VI_at, num_points)
 
+    # Setup config
     config = dict(
-        num_fidelities=2,
         source = 'MODIS/061/MOD13Q1',
         source_low = 'MODIS/061/MOD13A2',
         scale=250,  # scale in meters
         scale_low=1000, # scale low fidelity
         num_points = 101,  # per direction
         num_points_plot = 101,
-        num_iter = 30,  # number of iterations
         lat = 45.77,
         lon = 4.855,
+        data_load_type = 'optimal', #   'api', 'local' or 'optimal'(takes local if exist)
+        veg_idx_band = 'NDVI', # Choose vegetation index band. For our datasets, either 'NDVI' or 'EVI'.
     )
     config.update({
+        NUM_FIDELITIES: 2,
+        NUM_ITER: 10,
         MATERN_LENGTHSCALE: 130,
         MATERN_VARIANCE: 1.0,
         RBF_LENGTHSCALE: 0.08,
@@ -225,13 +209,15 @@ def main(use_wandb=True):
         LOW_FIDELITY_COST: 1.0,
         HIGH_FIDELITY_COST: 2.0,
     })
+    global LOGGER
     LOGGER = CustomLogger(use_wandb=use_wandb, config=config)
+    print("LOGGER.config:", LOGGER.config)
     center_point = np.array([[LOGGER.config["lat"], LOGGER.config["lon"]]])
-    dataloader_high_fidelity = DataLoad(LOGGER.config["source"], center_point, LOGGER.config["num_points"], LOGGER.config["scale"], veg_idx_band, data_load_type)
-    # basic_gp(dataloader_high_fidelity, LOGGER.config["num_points"], LOGGER.config["num_iter"])
+    dataloader_high_fidelity = DataLoad(LOGGER.config["source"], center_point, LOGGER.config["num_points"], LOGGER.config["scale"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
+    # basic_gp(dataloader_high_fidelity, LOGGER.config["num_points"])
 
-    dataloader2 = DataLoad(LOGGER.config["source_low"], center_point, LOGGER.config["num_points"], LOGGER.config["scale_low"], veg_idx_band, data_load_type)
-    mf_gp(dataloader_high_fidelity, dataloader2, LOGGER.config["num_points"], LOGGER.config["num_iter"])
+    dataloader2 = DataLoad(LOGGER.config["source_low"], center_point, LOGGER.config["num_points"], LOGGER.config["scale_low"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
+    mf_gp(dataloader_high_fidelity, dataloader2, LOGGER.config["num_points"])
     LOGGER.stop_run()
     return
 
@@ -313,7 +299,6 @@ if __name__ == '__main__':
         # },
     }
     sweep_config['parameters'] = parameters_dict
-    print("starting logger")
     if sweep_config and args.sweep:
         sweep_id = wandb.sweep(sweep_config, project="sensor-placement", entity="camb-mphil")
         # sweep_id = wandb.sweep(sweep_config, project="test-sensor-placement", entity="sepand")

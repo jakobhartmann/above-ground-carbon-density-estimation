@@ -49,15 +49,22 @@ def geographic_bayes_opt_no_dataloader(target_function, x_space, y_space, X_init
     ed.run_loop(target_function, num_iter)
     return emukit_model
 
-def geographic_bayes_opt(dataloader:'DataLoad', x_space, y_space, X_init, num_iter, config):
+def geographic_bayes_opt(dataloader:'DataLoad', x_space, y_space, X_init, logger):
+    config = logger.config
     space = ParameterSpace([DiscreteParameter('x', x_space),
                             DiscreteParameter('y', y_space)])
 
     Y_init = dataloader.load_values(X_init)
 
-    # RBF_var = 20
-    # RBF_lengthscale = 0.08
+    # Prep plotspace
+    x_plot = np.meshgrid(x_space, y_space)
+    x_plot = np.stack((x_plot[1], x_plot[0]), axis=-1).reshape(-1, 2)
 
+    # Load ground truth as dataset
+    ground_truth = dataloader.load_data_local()
+    ground_truth_reshaped = ground_truth.reshape(dataloader.num_points ** 2, 1)
+
+    # Define kernels
     k1 = GPy.kern.RBF(input_dim=2, lengthscale=config[RBF_LENGTHSCALE], variance=config[RBF_VARIANCE])
     k2 = GPy.kern.Matern32(input_dim=2, lengthscale=config[MATERN_LENGTHSCALE], variance=config[MATERN_VARIANCE])
     k3 = GPy.kern.StdPeriodic(input_dim=2, lengthscale=config[PERIODIC_LENGTHSCALE], variance=config[PERIODIC_VARIANCE], period=config[PERIODIC_PERIOD])
@@ -94,7 +101,25 @@ def geographic_bayes_opt(dataloader:'DataLoad', x_space, y_space, X_init, num_it
 
     ed = ExperimentalDesignLoop(space=space, model=emukit_model)
 
-    ed.run_loop(dataloader.load_values, num_iter)
+    def log_metrics_basic(loop, loop_state):
+        # print(f'Logging metrics on iteration {loop_state.iteration}')
+        # Get predictions
+        mu_plot, var_plot = loop.model_updaters[0].model.predict(x_plot)
+        std_plot = np.sqrt(var_plot)
+
+        # Separate unseen data for special metrics
+        idx_unseen = (x_plot[:, None] != loop.model_updaters[0].model.X).any(-1).all(1)
+        x_unseen = x_plot[idx_unseen]
+        mu_unseen, var_unseen = loop.model_updaters[0].model.predict(x_unseen)
+        std_unseen = np.sqrt(var_unseen)
+        ground_truth_unseen = ground_truth_reshaped[idx_unseen]
+
+        logger.log_metrics(ground_truth_reshaped, mu_plot, std_plot, mu_unseen, std_unseen, ground_truth_unseen)
+    
+    # subscribe to events during loop
+    ed.iteration_end_event.append(log_metrics_basic)
+
+    ed.run_loop(dataloader.load_values, config[NUM_ITER])
     return emukit_model
 
 # Define cost of different fidelities as acquisition function
@@ -115,25 +140,35 @@ class Cost(Acquisition):
     def evaluate_with_gradients(self, x):
         return self.evaluate(x), np.zeros(x.shape)
 
-def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_space, X1_init, X2_init, num_iter=10, num_fidelities=2, low_fidelity_cost=1, high_fidelity_cost=5, config=None):
+def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_space, X1_init, X2_init, logger):
+    config = logger.config
     space = ParameterSpace([DiscreteParameter('x', x_space),
                             DiscreteParameter('y', y_space),
-                            InformationSourceParameter(num_fidelities)])
+                            InformationSourceParameter(config[NUM_FIDELITIES])])
 
     Y1_init = dataloader1.load_values(X1_init)
     Y2_init = dataloader2.load_values(X2_init)
     Y_init = np.concatenate((Y1_init, Y2_init))
     X_init = np.concatenate((X1_init, X2_init))
 
+    # Prep plotspace
+    x_plot = np.meshgrid(x_space, y_space)
+    x_plot_high = np.stack((x_plot[1], x_plot[0], np.zeros(x_plot[0].shape)), axis=-1).reshape(-1, 3)
+    # x_plot_low = np.stack((x_plot[1], x_plot[0], np.ones(x_plot[0].shape)), axis=-1).reshape(-1, 3)
+
+    # Load ground truth as dataset
+    ground_truth_high = dataloader1.load_data_local()
+    ground_truth_high_reshaped = ground_truth_high.reshape(dataloader1.num_points ** 2, 1)
+
 
     kernels = [GPy.kern.RBF(input_dim=2, lengthscale=0.1, variance=20.0), GPy.kern.RBF(input_dim=2, lengthscale=3, variance=20.0)]
     # kern = GPy.kern.RBF(input_dim=2, lengthscale=0.08, variance=20)
     linear_mf_kernel = LinearMultiFidelityKernel(kernels)
-    gpy_linear_mf_model = GPyLinearMultiFidelityModel(X_init, Y_init, linear_mf_kernel, n_fidelities = num_fidelities)
+    gpy_linear_mf_model = GPyLinearMultiFidelityModel(X_init, Y_init, linear_mf_kernel, n_fidelities=config[NUM_FIDELITIES])
     gpy_linear_mf_model.mixed_noise.Gaussian_noise.fix(0)
     gpy_linear_mf_model.mixed_noise.Gaussian_noise_1.fix(0)
     
-    emukit_model = GPyMultiOutputWrapper(gpy_linear_mf_model, num_fidelities+1, n_optimization_restarts=config[OPTIMIZATION_RESTARTS], verbose_optimization=True)
+    emukit_model = GPyMultiOutputWrapper(gpy_linear_mf_model, config[NUM_FIDELITIES]+1, n_optimization_restarts=config[OPTIMIZATION_RESTARTS], verbose_optimization=True)
 
     emukit_model.optimize()
 
@@ -150,12 +185,32 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     model_updater = FixedIntervalUpdater(emukit_model, config[OPTIMIZER_UPDATE_INTERVAL])
     loop = OuterLoop(candidate_point_calculator, model_updater, initial_loop_state)
 
-    # loop.iteration_end_event.append(plot_acquisition)
+
+    def log_metrics_mf(loop, loop_state):
+        # print(f'Logging metrics on iteration {loop_state.iteration}')
+        # Get predictions
+        mu_plot_high, var_plot_high = loop.model_updaters[0].model.predict(x_plot_high)
+        # mu_plot_low, var_plot_low = loop.model_updaters[1].model.predict(x_plot_low)
+        std_plot_high = np.sqrt(var_plot_high)
+
+        # Separate unseen data for special metrics
+        idx_unseen = (x_plot_high[:, None] != loop.model_updaters[0].model.X).any(-1).all(1)
+        x_unseen_high = x_plot_high[idx_unseen]
+        mu_unseen_high, var_unseen_high = loop.model_updaters[0].model.predict(x_unseen_high)
+        std_unseen_high = np.sqrt(var_unseen_high)
+        ground_truth_unseen_high = ground_truth_high_reshaped[idx_unseen]
+
+        # High fidelity metrics
+        logger.log_metrics(ground_truth_high_reshaped, mu_plot_high, std_plot_high, mu_unseen_high, std_unseen_high, ground_truth_unseen_high)
+
+
+    # subscribe to events during loop
+    loop.iteration_end_event.append(log_metrics_mf)
 
     loop_function = MultiSourceFunctionWrapper([
         lambda x: dataloader1.load_values(x),
         lambda x: dataloader2.load_values(x)])
 
-    loop.run_loop(loop_function, num_iter)
+    loop.run_loop(loop_function, config[NUM_ITER])
 
     return emukit_model
