@@ -21,6 +21,8 @@ from emukit.experimental_design.acquisitions import ModelVariance, IntegratedVar
 # from emukit.test_functions.forrester import multi_fidelity_forrester_function
 from data import DataLoad
 from constants import *
+from custom_loop import CustomLoop
+
 
 def geographic_bayes_opt_no_dataloader(target_function, x_space, y_space, X_init, num_iter=10):
     space = ParameterSpace([DiscreteParameter('x', x_space),
@@ -146,6 +148,8 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
                             DiscreteParameter('y', y_space),
                             InformationSourceParameter(config[NUM_FIDELITIES])])
 
+    step = [np.abs(x_space[0]-x_space[1]), np.abs(y_space[0]-y_space[1])]
+
     Y1_init = dataloader1.load_values(X1_init)
     Y2_init = dataloader2.load_values(X2_init)
     Y_init = np.concatenate((Y1_init, Y2_init))
@@ -182,7 +186,7 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     initial_loop_state = create_loop_state(X_init, Y_init)
     acquisition_optimizer = MultiSourceAcquisitionOptimizer(GradientAcquisitionOptimizer(space), space)
     candidate_point_calculator = SequentialPointCalculator(model_variance, acquisition_optimizer)
-    model_updater = FixedIntervalUpdater(emukit_model, config[OPTIMIZER_UPDATE_INTERVAL])
+    model_updater = FixedIntervalUpdater(emukit_model)
     loop = OuterLoop(candidate_point_calculator, model_updater, initial_loop_state)
 
 
