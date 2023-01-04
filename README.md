@@ -9,7 +9,7 @@
 ### Running the code
 Install the dependencies using `pip install -r requirements.txt`.
 
-Try out the existing function by running `python main.py`. This will run the function on default, small subset of data and save a visualization of the estimation vs the ground truth data.
+Run the default bayesian optimization with `python src/main.py`. This will run the function on default, small subset of data and save a visualization of the estimation vs the ground truth data. To use the local data, run the script from the home directory of the project. The data is stored in `data/`.
 
 Tinker with the parameters in `main.py`, or you can modify the bayesian optimization procedure in `bayes_opt.py`.
 

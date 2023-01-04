@@ -65,3 +65,13 @@ def ssim(bo_mean, ground_truth):
     result = (l ** alpha) * (c ** beta) * (s ** gamma)
 
     return result
+
+def calc_metrics(mu_plot, std_plot, ground_truth_reshaped, mu_unseen, std_unseen, ground_truth_unseen):
+    L1 = l1(mu_plot, ground_truth_reshaped)
+    L2 = l2(mu_plot, ground_truth_reshaped)
+    MSE = mse(mu_plot, ground_truth_reshaped)
+    PSNR = psnr(mu_plot, ground_truth_reshaped)
+    SSIM = ssim(mu_plot, ground_truth_reshaped)
+    MPDF_unseen = mpdf(mu_unseen, std_unseen, ground_truth_unseen)
+    MPDF_all = mpdf(mu_plot, std_plot, ground_truth_reshaped)
+    return L1,L2,MSE,PSNR,SSIM,MPDF_unseen,MPDF_all
