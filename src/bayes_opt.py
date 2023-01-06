@@ -174,7 +174,7 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     ground_truth_high_reshaped = ground_truth_high.reshape(dataloader1.num_points ** 2, 1)
 
 
-    kernels = [kernel(config), kernel(config)] # NOTE: This list must be in order of low to high fidelity
+    kernels = [kernel(config), GPy.kern.RBF(input_dim=2, lengthscale=3, variance=20.0)] # NOTE: This list must be in order of low to high fidelity
     linear_mf_kernel = LinearMultiFidelityKernel(kernels)
     gpy_linear_mf_model = GPyLinearMultiFidelityModel(X_init, Y_init, linear_mf_kernel, n_fidelities=config[NUM_FIDELITIES])
     gpy_linear_mf_model.mixed_noise.Gaussian_noise.fix(0)
