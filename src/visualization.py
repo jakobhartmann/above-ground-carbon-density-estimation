@@ -22,18 +22,25 @@ def heatmap_comparison(a, b, num_points, emukit_model):
     return fig
 
 # Plot 2D heatmap of each of a and b functions, side by side
-def heatmap_comparison_mf(a, b, num_points, emukit_model, mf_choose):
-    fig, axes = plt.subplots(1, 2)
+def heatmap_comparison_mf(a1, a2, b1, b2, num_points, emukit_model):
+    
 
-    min_val = min([np.min(a), np.min(b)])
-    max_val = max([np.max(a), np.max(b)])
+    min_val = min([np.min(a1), np.min(b1), np.min(a2), np.min(b2)])
+    max_val = max([np.max(a1), np.max(b1), np.max(a2), np.max(b2)])
 
-    plot_2D_vis_mf(a, num_points, emukit_model, axes, 0, min_val, max_val, 'Bayesian optimization', mf_choose)
-    plot = plot_2D_vis_mf(b, num_points, emukit_model, axes, 1, min_val, max_val, 'Ground truth', mf_choose)
+    fig1, axes1 = plt.subplots(1, 2)
+    plot_2D_vis_mf(a1, num_points, emukit_model, axes1, 0, min_val, max_val, 'Bayesian optimization', 0)
+    plot = plot_2D_vis_mf(b1, num_points, emukit_model, axes1, 1, min_val, max_val, 'Ground truth', 0)
 
-    add_colorbar(fig, axes[1], plot, label="NDVI")
+    add_colorbar(fig1, axes1[1], plot, label="NDVI")
 
-    return fig
+    fig2, axes2 = plt.subplots(1, 2)
+    plot_2D_vis_mf(a2, num_points, emukit_model, axes2, 0, min_val, max_val, 'Bayesian optimization', 1)
+    plot = plot_2D_vis_mf(b2, num_points, emukit_model, axes2, 1, min_val, max_val, 'Ground truth', 1)
+
+    add_colorbar(fig2, axes2[1], plot, label="NDVI")
+
+    return fig1, fig2
 
 
 def plot_2D_vis(results, num_points, emukit_model, axes, axis_idx, min_val, max_val, title):

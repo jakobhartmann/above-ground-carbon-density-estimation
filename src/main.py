@@ -101,8 +101,8 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points, num
 
 
     LOGGER.log(dict(
-        mean_plot_high=heatmap_comparison_mf(mu_plot_high, ground_truth_high, num_points, emukit_model, mf_choose=0.0),
-        mean_plot_low=heatmap_comparison_mf(mu_plot_low, ground_truth_low, num_points, emukit_model, mf_choose=1.0),
+        mean_plots = heatmap_comparison_mf(mu_plot_high, mu_plot_low, ground_truth_high, ground_truth_low, num_points, emukit_model),
+        # mean_plot_low=heatmap_comparison_mf(mu_plot_low, ground_truth_low, num_points, emukit_model, mf_choose=1.0),
         variance_plot_high=plot_variance(var_plot_high, num_points, emukit_model),
         variance_plot_low=plot_variance(var_plot_low, num_points, emukit_model),
         num_high_fidelity_samples = np.sum(emukit_model.X[:, 2] == 0) - len(X1_init),
@@ -182,8 +182,11 @@ if __name__ == '__main__':
         num_points = 101,  # per direction
         num_points_plot = 101,
         num_iter = 100,  # number of iterations
-        lat = 45.77,
-        lon= 4.855
+        # lat = 45.77,
+        # lon= 4.855
+        # points with water
+        # lat = -82.8642,
+        # lon = 42.33
     )
     LOGGER = CustomLogger(use_wandb=False, config=config)
     center_point = np.array([[LOGGER.config["lat"], LOGGER.config["lon"]]])
@@ -192,3 +195,4 @@ if __name__ == '__main__':
     dataloader1 = DataLoad(LOGGER.config["source"], center_point, LOGGER.config["num_points"], LOGGER.config["scale"], veg_idx_band, data_load_type)
     dataloader2 = DataLoad(LOGGER.config["source_low"], center_point, LOGGER.config["num_points"], LOGGER.config["scale_low"], veg_idx_band, data_load_type)
     mf_gp(dataloader1, dataloader2, LOGGER.config["num_points"], LOGGER.config["num_iter"], LOGGER.config["num_fidelities"], LOGGER.config["low_fidelity_cost"], LOGGER.config["high_fidelity_cost"])
+    input()
