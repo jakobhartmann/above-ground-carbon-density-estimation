@@ -194,12 +194,12 @@ def main(use_wandb=True):
     )
     config.update({
         NUM_FIDELITIES: 2,
-        NUM_ITER: 0,
-        KERNELS: MATERN32,
+        NUM_ITER: 30,
+        KERNELS: RBF,
         KERNEL_COMBINATION: SUM,
         MATERN32_LENGTHSCALE: 130,
         MATERN32_VARIANCE: 1.0,
-        RBF_LENGTHSCALE: 0.08,
+        RBF_LENGTHSCALE: 0.1,
         RBF_VARIANCE: 20.0,
         WHITE_VARIANCE: 20.0,
         PERIODIC_LENGTHSCALE: 0.08,
