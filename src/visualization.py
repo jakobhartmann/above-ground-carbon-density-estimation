@@ -24,7 +24,7 @@ def heatmap_comparison(a, b, num_points, emukit_model, backend=''):
     return fig
 
 # Plot 2D heatmap of each of a and b functions, side by side
-def heatmap_comparison_mf(a1, a2, b1, b2, num_points, emukit_model):
+def heatmap_comparison_mf(a1, a2, b1, b2, num_points, emukit_model, backend=''):
     if backend != '':
         matplotlib.use(backend)
     import matplotlib.pyplot as plt

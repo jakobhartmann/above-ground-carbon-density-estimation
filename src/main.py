@@ -97,8 +97,8 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points):
 
     # Log summary of results
     LOGGER.log(dict(
-        mean_plot_high=heatmap_comparison_mf(mu_plot_high, ground_truth_high, num_points, emukit_model, mf_choose=0.0, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
-        mean_plot_low=heatmap_comparison_mf(mu_plot_low, ground_truth_low, num_points, emukit_model, mf_choose=1.0, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
+        mean_plot_high=heatmap_comparison_mf(mu_plot_high, mu_plot_low, ground_truth_high, ground_truth_low, num_points, emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
+        # mean_plot_low=heatmap_comparison_mf(mu_plot_low, ground_truth_low, num_points, emukit_model, mf_choose=1.0, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
         variance_plot_high=plot_variance(var_plot_high, num_points, emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
         variance_plot_low=plot_variance(var_plot_low, num_points, emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
         num_high_fidelity_samples = np.sum(emukit_model.X[:, 2] == 0) - len(X1_init),
@@ -181,7 +181,7 @@ def main(use_wandb=True):
         source = 'MODIS/061/MOD13Q1',
         source_low = 'MODIS/061/MOD13A2',
         scale=250,  # scale in meters
-        scale_low=1000, # scale low fidelity
+        scale_low=250, # scale low fidelity
         num_points = 101,  # per direction
         num_points_plot = 101,
         lat = 45.77,
@@ -194,7 +194,7 @@ def main(use_wandb=True):
     )
     config.update({
         NUM_FIDELITIES: 2,
-        NUM_ITER: 30,
+        NUM_ITER: 0,
         KERNELS: MATERN32,
         KERNEL_COMBINATION: SUM,
         MATERN32_LENGTHSCALE: 130,
