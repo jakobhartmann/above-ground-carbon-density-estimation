@@ -196,7 +196,7 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     candidate_point_calculator = SequentialPointCalculator(model_variance, acquisition_optimizer)
     model_updater = FixedIntervalUpdater(emukit_model)
     loop = OuterLoop(candidate_point_calculator, model_updater, initial_loop_state)
-
+    # loop = CustomLoop(candidate_point_calculator, model_updater, initial_loop_state, step)
 
     def log_metrics_mf(loop, loop_state):
         # print(f'Logging metrics on iteration {loop_state.iteration}')

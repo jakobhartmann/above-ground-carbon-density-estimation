@@ -2,7 +2,7 @@ import argparse
 import ee
 import numpy as np
 np.random.seed(20)
-from data import DataLoad
+from data import DataLoad, NormalDataLoad
 import wandb
 
 from bayes_opt import *
@@ -68,6 +68,14 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points):
     # Load Data Pipeline
     dataloader_high.load_data()
     dataloader_low.load_data()
+
+    # find max and min for normalization
+    data_max_val = np.max((dataloader_high.max_val, dataloader_low.max_val))
+    data_min_val = np.min((dataloader_high.min_val, dataloader_low.min_val))
+
+    #normalize data
+    dataloader_high.normalize_data(data_max_val, data_min_val)
+    dataloader_low.normalize_data(data_max_val, data_min_val)
 
     # Bayesian optimization
     X1_init = np.array([(0.2, 0.4, 0.0), (0.6, -0.4, 0.0), (0.9, 0.0, 0.0)])
@@ -194,7 +202,7 @@ def main(use_wandb=True):
     )
     config.update({
         NUM_FIDELITIES: 2,
-        NUM_ITER: 0,
+        NUM_ITER: 200,
         KERNELS: MATERN32,
         KERNEL_COMBINATION: SUM,
         MATERN32_LENGTHSCALE: 130,
@@ -215,12 +223,14 @@ def main(use_wandb=True):
     global LOGGER
     LOGGER = CustomLogger(use_wandb=use_wandb, config=config)
     center_point = np.array([[LOGGER.config["lat"], LOGGER.config["lon"]]])
-    dataloader_high_fidelity = DataLoad(LOGGER.config["source"], center_point, LOGGER.config["num_points"], LOGGER.config["scale"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
+    dataloader_high_fidelity = NormalDataLoad(LOGGER.config["source"], center_point, LOGGER.config["num_points"], LOGGER.config["scale"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
     # basic_gp(dataloader_high_fidelity, LOGGER.config["num_points"])
 
-    dataloader2 = DataLoad(LOGGER.config["source_low"], center_point, LOGGER.config["num_points"], LOGGER.config["scale_low"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
+    dataloader2 = NormalDataLoad(LOGGER.config["source_low"], center_point, LOGGER.config["num_points"], LOGGER.config["scale_low"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
+
     mf_gp(dataloader_high_fidelity, dataloader2, LOGGER.config["num_points"])
     LOGGER.stop_run()
+    input()
     return
 
 if __name__ == '__main__':
@@ -245,24 +255,24 @@ if __name__ == '__main__':
         # KERNEL_COMBINATION: {
         #     'values': [PRODUCT, SUM, ''],
         # },
-        # RBF_LENGTHSCALE: {
+        RBF_LENGTHSCALE: {
+            'distribution': 'log_uniform_values', # or 'uniform',
+            'min': 10**(-5),
+            'max': 10**(1),
+            # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
+        },
+        RBF_VARIANCE: {
+            'distribution': 'log_uniform_values',
+            'min': 10**(-1),
+            'max': 10**2,
+            # 'values': np.linspace(0.0, 50.0, 10),
+        },
+        # MATERN32_LENGTHSCALE: {
         #     'distribution': 'log_uniform_values', # or 'uniform',
         #     'min': 10**(-3),
         #     'max': 10**(3),
         #     # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
         # },
-        # RBF_VARIANCE: {
-        #     'distribution': 'log_uniform_values',
-        #     'min': 10**(-1),
-        #     'max': 10**2,
-        #     # 'values': np.linspace(0.0, 50.0, 10),
-        # },
-        MATERN32_LENGTHSCALE: {
-            'distribution': 'log_uniform_values', # or 'uniform',
-            'min': 10**(-3),
-            'max': 10**(3),
-            # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
-        },
         # MATERN32_VARIANCE: {
         #     'distribution': 'log_uniform_values',
         #     'min': 10**(-1),
