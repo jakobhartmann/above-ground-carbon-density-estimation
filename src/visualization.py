@@ -1,6 +1,5 @@
-import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
-import os
 
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
@@ -8,7 +7,10 @@ output_folder = 'results/'
 
 
 # Plot 2D heatmap of each of a and b functions, side by side
-def heatmap_comparison(a, b, num_points, emukit_model):
+def heatmap_comparison(a, b, num_points, emukit_model, backend=''):
+    if backend != '':
+        matplotlib.use(backend)
+    import matplotlib.pyplot as plt
     fig, axes = plt.subplots(1, 2)
 
     min_val = min([np.min(a), np.min(b)])
@@ -23,7 +25,9 @@ def heatmap_comparison(a, b, num_points, emukit_model):
 
 # Plot 2D heatmap of each of a and b functions, side by side
 def heatmap_comparison_mf(a1, a2, b1, b2, num_points, emukit_model):
-    
+    if backend != '':
+        matplotlib.use(backend)
+    import matplotlib.pyplot as plt
 
     min_val = min([np.min(a1), np.min(b1), np.min(a2), np.min(b2)])
     max_val = max([np.max(a1), np.max(b1), np.max(a2), np.max(b2)])
@@ -74,7 +78,10 @@ def plot_2D_vis_mf(results, num_points, emukit_model, axes, axis_idx, min_val, m
     return plot
 
 
-def plot_variance(variance, num_points, emukit_model):
+def plot_variance(variance, num_points, emukit_model, backend=''):
+    if backend != '':
+        matplotlib.use(backend)
+    import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
     plot = ax.imshow(variance.reshape(num_points, num_points))
     ax.set_xlabel('$x$ (Latitude)')
