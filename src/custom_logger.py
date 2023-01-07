@@ -13,7 +13,7 @@ class CustomLogger:
         self.sweep_config: Union[Dict[str, Any], None] = sweep_config
         if use_wandb:
             # wandb.init(project="sensor-placement", entity="camb-mphil", config=config)
-            self._wandb_run = wandb.init(project="test-sensor-placement", entity="camb-mphil", config=config)
+            self._wandb_run = wandb.init(project="sensor-placement", entity="camb-mphil", config=config)
             print('wandb initialized')
             self.config = wandb.config
             self._wandb_instance = wandb
