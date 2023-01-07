@@ -94,6 +94,11 @@ class CustomLoop(OuterLoop):
             _log.info("Iteration {}".format(self.loop_state.iteration))
 
             self._update_models()
+            # For us: SequentialPointCalculator with (ModelVariance / cost) acquisition and
+            # MultiSourceAcquisitionOptimizer. What it does:
+            # 1. Optimizer selects 1000 RANDOM points from space
+            # 2. For all points, acquisition evaluates variance / cost in each fidelity and returns the maximum
+            # 3. SequentialPointCalculator returns this maximum as next point
             new_x = self.candidate_point_calculator.compute_next_points(self.loop_state, context)
             # find points with same value and add them to acquisition points
             all_points = self.find_neighbors(new_x, user_function) 

@@ -22,6 +22,8 @@ from emukit.experimental_design.acquisitions import ModelVariance, IntegratedVar
 from data import DataLoad
 from constants import *
 from custom_loop import CustomLoop
+from src.local_ivr import LocalBatchPointCalculator, LatinHypercubeMaximaIdentifier
+
 
 def kernel(config):
     print("Using kernels: ", config[KERNELS], " with combination: ", config[KERNEL_COMBINATION])
@@ -194,6 +196,9 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     initial_loop_state = create_loop_state(X_init, Y_init)
     acquisition_optimizer = MultiSourceAcquisitionOptimizer(GradientAcquisitionOptimizer(space), space)
     candidate_point_calculator = SequentialPointCalculator(model_variance, acquisition_optimizer)
+    hypercube_maxima = LatinHypercubeMaximaIdentifier(4)
+    # candidate_point_calculator = LocalBatchPointCalculator(emukit_model, [3, 1], x_plot_high[:, :2], x_space.shape[0],
+    #                                                        x_space.shape[0], 15, hypercube_maxima, 21, 3, True)
     model_updater = FixedIntervalUpdater(emukit_model)
     loop = OuterLoop(candidate_point_calculator, model_updater, initial_loop_state)
     # loop = CustomLoop(candidate_point_calculator, model_updater, initial_loop_state, step)
