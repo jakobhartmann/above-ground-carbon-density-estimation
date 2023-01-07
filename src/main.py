@@ -181,22 +181,22 @@ def main(use_wandb=True):
         source = 'MODIS/061/MOD13Q1',
         source_low = 'MODIS/061/MOD13A2',
         scale=250,  # scale in meters
-        scale_low=1000, # scale low fidelity
+        scale_low=250, # scale low fidelity
         num_points = 101,  # per direction
         num_points_plot = 101,
-        lat = 45.77,
-        lon = 4.855,
+        lat = -82.8642, # 45.77
+        lon = 42.33, # 4.855,
         data_load_type = 'optimal', #   'api', 'local' or 'optimal'(takes local if exist)
         veg_idx_band = 'NDVI', # Choose vegetation index band. For our datasets, either 'NDVI' or 'EVI'.
     )
     config.update({
         NUM_FIDELITIES: 2,
         NUM_ITER: 30,
-        KERNELS: MATERN32,
+        KERNELS: RBF,
         KERNEL_COMBINATION: SUM,
         MATERN32_LENGTHSCALE: 130,
         MATERN32_VARIANCE: 1.0,
-        RBF_LENGTHSCALE: 0.08,
+        RBF_LENGTHSCALE: 0.1,
         RBF_VARIANCE: 20.0,
         WHITE_VARIANCE: 20.0,
         PERIODIC_LENGTHSCALE: 0.08,

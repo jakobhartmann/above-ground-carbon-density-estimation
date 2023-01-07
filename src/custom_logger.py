@@ -12,8 +12,8 @@ class CustomLogger:
         # NOTE: this is a hack to get around the fact that wandb.init() can't be called twice in the same process
         self.sweep_config: Union[Dict[str, Any], None] = sweep_config
         if use_wandb:
-            # wandb.init(project="sensor-placement", entity="camb-mphil", config=config)
-            self._wandb_run = wandb.init(project="test-sensor-placement", entity="sepand", config=config)
+            wandb.init(project="sensor-placement", entity="camb-mphil", config=config)
+            # self._wandb_run = wandb.init(project="test-sensor-placement", entity="sepand", config=config)
             print('wandb initialized')
             self.config = wandb.config
             self._wandb_instance = wandb
@@ -59,7 +59,7 @@ class CustomLogger:
             wandb.log(data)
 
     def log_metrics(self, ground_truth_reshaped, mu_plot, std_plot, mu_unseen, std_unseen, ground_truth_unseen):
-        L1, L2, MSE, PSNR, SSIM, MPDF_unseen, MPDF_all = calc_metrics(mu_plot, std_plot, ground_truth_reshaped, mu_unseen, std_unseen, ground_truth_unseen)
+        L1, L2, MSE, PSNR, SSIM, MPDF_unseen, MPDF_all, KL, ModelVariance_unseen, ModelVariance_all = calc_metrics(mu_plot, std_plot, ground_truth_reshaped, mu_unseen, std_unseen, ground_truth_unseen)
 
         self.log(dict(
             L1 = L1,
@@ -69,5 +69,8 @@ class CustomLogger:
             SSIM = SSIM,
             MPDF_unseen = MPDF_unseen,
             MPDF_all = MPDF_all,
+            KL = KL,
+            ModelVariance_unseen = ModelVariance_unseen,
+            ModelVariance_all = ModelVariance_all
         ))
 
