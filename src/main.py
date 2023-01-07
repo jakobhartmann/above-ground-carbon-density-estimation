@@ -103,9 +103,12 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points):
     # High fidelity metrics
     LOGGER.log_metrics(ground_truth_high_reshaped, mu_plot_high, std_plot_high, mu_unseen_high, std_unseen_high, ground_truth_unseen_high)
 
+    mean_plot_high, mean_plot_low = heatmap_comparison_mf(mu_plot_high, mu_plot_low, ground_truth_high, ground_truth_low, num_points,
+                                           emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND])
     # Log summary of results
     LOGGER.log(dict(
-        mean_plot_high=heatmap_comparison_mf(mu_plot_high, mu_plot_low, ground_truth_high, ground_truth_low, num_points, emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
+        mean_plot_high=mean_plot_high,
+        mean_plot_low=mean_plot_low,
         # mean_plot_low=heatmap_comparison_mf(mu_plot_low, ground_truth_low, num_points, emukit_model, mf_choose=1.0, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
         variance_plot_high=plot_variance(var_plot_high, num_points, emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
         variance_plot_low=plot_variance(var_plot_low, num_points, emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
