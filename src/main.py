@@ -2,7 +2,7 @@ import argparse
 import ee
 import numpy as np
 np.random.seed(20)
-from data import DataLoad
+from data import DataLoad, NormalDataLoad
 import wandb
 
 from bayes_opt import *
@@ -69,6 +69,14 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points):
     dataloader_high.load_data()
     dataloader_low.load_data()
 
+    # find max and min for normalization
+    data_max_val = np.max((dataloader_high.max_val, dataloader_low.max_val))
+    data_min_val = np.min((dataloader_high.min_val, dataloader_low.min_val))
+
+    #normalize data
+    dataloader_high.normalize_data(data_max_val, data_min_val)
+    dataloader_low.normalize_data(data_max_val, data_min_val)
+
     # Bayesian optimization
     X1_init = np.array([(0.2, 0.4, 0.0), (0.6, -0.4, 0.0), (0.9, 0.0, 0.0)])
     # X2_init = np.array([[0.2, 0.4, 1.0], [0.6, -0.4, 1.0], [0.9, 0.0, 1.0]])
@@ -95,10 +103,13 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points):
     # High fidelity metrics
     LOGGER.log_metrics(ground_truth_high_reshaped, mu_plot_high, std_plot_high, mu_unseen_high, std_unseen_high, ground_truth_unseen_high)
 
+    mean_plot_high, mean_plot_low = heatmap_comparison_mf(mu_plot_high, mu_plot_low, ground_truth_high, ground_truth_low, num_points,
+                                           emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND])
     # Log summary of results
     LOGGER.log(dict(
-        mean_plot_high=heatmap_comparison_mf(mu_plot_high, ground_truth_high, num_points, emukit_model, mf_choose=0.0, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
-        mean_plot_low=heatmap_comparison_mf(mu_plot_low, ground_truth_low, num_points, emukit_model, mf_choose=1.0, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
+        mean_plot_high=mean_plot_high,
+        mean_plot_low=mean_plot_low,
+        # mean_plot_low=heatmap_comparison_mf(mu_plot_low, ground_truth_low, num_points, emukit_model, mf_choose=1.0, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
         variance_plot_high=plot_variance(var_plot_high, num_points, emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
         variance_plot_low=plot_variance(var_plot_low, num_points, emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
         num_high_fidelity_samples = np.sum(emukit_model.X[:, 2] == 0) - len(X1_init),
@@ -184,8 +195,11 @@ def main(use_wandb=True):
         scale_low=250, # scale low fidelity
         num_points = 101,  # per direction
         num_points_plot = 101,
-        lat = -82.8642, # 45.77
-        lon = 42.33, # 4.855,
+        # lat = 45.77,
+        # lon = 4.855,
+        # points with water
+        lat = -82.8642,
+        lon = 42.33
         data_load_type = 'optimal', #   'api', 'local' or 'optimal'(takes local if exist)
         veg_idx_band = 'NDVI', # Choose vegetation index band. For our datasets, either 'NDVI' or 'EVI'.
     )
@@ -212,12 +226,14 @@ def main(use_wandb=True):
     global LOGGER
     LOGGER = CustomLogger(use_wandb=use_wandb, config=config)
     center_point = np.array([[LOGGER.config["lat"], LOGGER.config["lon"]]])
-    dataloader_high_fidelity = DataLoad(LOGGER.config["source"], center_point, LOGGER.config["num_points"], LOGGER.config["scale"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
+    dataloader_high_fidelity = NormalDataLoad(LOGGER.config["source"], center_point, LOGGER.config["num_points"], LOGGER.config["scale"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
     # basic_gp(dataloader_high_fidelity, LOGGER.config["num_points"])
 
-    dataloader2 = DataLoad(LOGGER.config["source_low"], center_point, LOGGER.config["num_points"], LOGGER.config["scale_low"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
+    dataloader2 = NormalDataLoad(LOGGER.config["source_low"], center_point, LOGGER.config["num_points"], LOGGER.config["scale_low"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
+
     mf_gp(dataloader_high_fidelity, dataloader2, LOGGER.config["num_points"])
     LOGGER.stop_run()
+    input()
     return
 
 if __name__ == '__main__':
@@ -242,24 +258,24 @@ if __name__ == '__main__':
         # KERNEL_COMBINATION: {
         #     'values': [PRODUCT, SUM, ''],
         # },
-        # RBF_LENGTHSCALE: {
+        RBF_LENGTHSCALE: {
+            'distribution': 'log_uniform_values', # or 'uniform',
+            'min': 10**(-5),
+            'max': 10**(1),
+            # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
+        },
+        RBF_VARIANCE: {
+            'distribution': 'log_uniform_values',
+            'min': 10**(-1),
+            'max': 10**2,
+            # 'values': np.linspace(0.0, 50.0, 10),
+        },
+        # MATERN32_LENGTHSCALE: {
         #     'distribution': 'log_uniform_values', # or 'uniform',
         #     'min': 10**(-3),
         #     'max': 10**(3),
         #     # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
         # },
-        # RBF_VARIANCE: {
-        #     'distribution': 'log_uniform_values',
-        #     'min': 10**(-1),
-        #     'max': 10**2,
-        #     # 'values': np.linspace(0.0, 50.0, 10),
-        # },
-        MATERN32_LENGTHSCALE: {
-            'distribution': 'log_uniform_values', # or 'uniform',
-            'min': 10**(-3),
-            'max': 10**(3),
-            # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
-        },
         # MATERN32_VARIANCE: {
         #     'distribution': 'log_uniform_values',
         #     'min': 10**(-1),

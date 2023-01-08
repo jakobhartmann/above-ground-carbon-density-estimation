@@ -24,6 +24,8 @@ from constants import *
 from custom_loop import CustomLoop
 from custom_kernels import WaterRBFKernel
 from vegetation import WaterUtils
+from src.local_ivr import LocalBatchPointCalculator, LatinHypercubeMaximaIdentifier
+
 
 def kernel(config):
     print("Using kernels: ", config[KERNELS], " with combination: ", config[KERNEL_COMBINATION])
@@ -182,7 +184,7 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     high_fidelity_water_rbf_kernel = WaterRBFKernel(input_dim = 1, variance_land = 20, lengthscale_land = 3, bitmask_land_land = bitmask_land_land, bitmask_water_water = bitmask_water_water)
     kernels = [kernel(config), high_fidelity_water_rbf_kernel] # NOTE: This list must be in order of low to high fidelity
 
-    # kernels = [kernel(config), GPy.kern.RBF(input_dim=2, lengthscale=3, variance=20.0)] # NOTE: This list must be in order of low to high fidelity
+    kernels = [kernel(config), GPy.kern.RBF(input_dim=2, lengthscale=3, variance=20.0)] # NOTE: This list must be in order of low to high fidelity
     linear_mf_kernel = LinearMultiFidelityKernel(kernels)
     gpy_linear_mf_model = GPyLinearMultiFidelityModel(X_init, Y_init, linear_mf_kernel, n_fidelities=config[NUM_FIDELITIES])
     gpy_linear_mf_model.mixed_noise.Gaussian_noise.fix(0)
@@ -202,10 +204,12 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     initial_loop_state = create_loop_state(X_init, Y_init)
     acquisition_optimizer = MultiSourceAcquisitionOptimizer(GradientAcquisitionOptimizer(space), space)
     candidate_point_calculator = SequentialPointCalculator(model_variance, acquisition_optimizer)
+    hypercube_maxima = LatinHypercubeMaximaIdentifier(4)
+    # candidate_point_calculator = LocalBatchPointCalculator(emukit_model, [3, 1], x_plot_high[:, :2], x_space.shape[0],
+    #                                                        x_space.shape[0], 15, hypercube_maxima, 21, 3, True)
     model_updater = FixedIntervalUpdater(emukit_model)
-    # loop = OuterLoop(candidate_point_calculator, model_updater, initial_loop_state)
-    loop = CustomLoop(candidate_point_calculator, model_updater, initial_loop_state, step)
-
+    loop = OuterLoop(candidate_point_calculator, model_updater, initial_loop_state)
+    # loop = CustomLoop(candidate_point_calculator, model_updater, initial_loop_state, step)
 
     def log_metrics_mf(loop, loop_state):
         # print(f'Logging metrics on iteration {loop_state.iteration}')

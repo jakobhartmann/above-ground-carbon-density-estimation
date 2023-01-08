@@ -12,8 +12,8 @@ class CustomLogger:
         # NOTE: this is a hack to get around the fact that wandb.init() can't be called twice in the same process
         self.sweep_config: Union[Dict[str, Any], None] = sweep_config
         if use_wandb:
-            wandb.init(project="sensor-placement", entity="camb-mphil", config=config)
-            # self._wandb_run = wandb.init(project="test-sensor-placement", entity="sepand", config=config)
+            # wandb.init(project="sensor-placement", entity="camb-mphil", config=config)
+            self._wandb_run = wandb.init(project="sensor-placement", entity="camb-mphil", config=config)
             print('wandb initialized')
             self.config = wandb.config
             self._wandb_instance = wandb

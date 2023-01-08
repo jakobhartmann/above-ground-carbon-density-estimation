@@ -114,3 +114,25 @@ class DataLoad:
             return np.array([])
         else:
             return np.array([np.array([self.dataset[v[0],v[1]]]) for v in indices])
+
+
+
+class NormalDataLoad(DataLoad):
+    def load_data_local(self):
+        if hasattr(self, 'dataset'):
+            return self.dataset
+
+        # generate filename
+        fname = self.get_filename()
+
+        # load dataset from file system
+        self.dataset = np.load(fname)
+        self.max_val = np.max(self.dataset)
+        self.min_val = np.max(self.dataset)
+        return self.dataset
+    def normalize_data(self, max_val, min_val):
+        self.dataset = (self.dataset) / (max_val)
+        self.scale_val = max_val
+        return
+
+

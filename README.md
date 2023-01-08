@@ -5,6 +5,8 @@
 2. Create a Google Earth Engine enabled Google Cloud Project
 3. Install the Earth Engine library `pip install earthengine-api`
 4. Authenticate yourself. Either the code itself will have `ee.Authenticate()` which will open a browser window to authenticate yourself. Or you can use the command line to authenticate yourself, using the gcloud CLI. See https://developers.google.com/earth-engine/guides/python_install-conda#authenticate
+5. Emukit appears to use concatenate with empty arrays which is no longer possible in current versions of numpy. To fix this, insert `outputs = list(filter(lambda x: x.size > 0, outputs))` in `emukit.core.loop.user_function.py:176` above `outputs = np.concatenate(outputs, axis=0)` 
+        outputs = np.concatenate(outputs, axis=0)
 
 ### Running the code
 Install the dependencies using `pip install -r requirements.txt`.
