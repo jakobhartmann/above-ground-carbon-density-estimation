@@ -64,6 +64,8 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points):
     x_plot = np.meshgrid(x_space, y_space)
     x_plot_high = np.stack((x_plot[1], x_plot[0], np.zeros(x_plot[0].shape)), axis=-1).reshape(-1, 3)
     x_plot_low = np.stack((x_plot[1], x_plot[0], np.ones(x_plot[0].shape)), axis=-1).reshape(-1, 3)
+    # x_plot_high = np.stack((x_plot[1], x_plot[0], np.ones(x_plot[0].shape)), axis=-1).reshape(-1, 3)
+    # x_plot_low = np.stack((x_plot[1], x_plot[0], np.zeros(x_plot[0].shape)), axis=-1).reshape(-1, 3)
     
     # Load Data Pipeline
     dataloader_high.load_data()
@@ -79,8 +81,10 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points):
 
     # Bayesian optimization
     X1_init = np.array([(0.2, 0.4, 0.0), (0.6, -0.4, 0.0), (0.9, 0.0, 0.0)])
+    # X1_init = np.array([(0.2, 0.4, 1.0), (0.6, -0.4, 1.0), (0.9, 0.0, 1.0)])
     # X2_init = np.array([[0.2, 0.4, 1.0], [0.6, -0.4, 1.0], [0.9, 0.0, 1.0]])
     X2_init = np.array([(0.4, 0.2, 1.0), (-0.4, 0.6, 1.0), (0.0, 0.9, 1.0)])
+    # X2_init = np.array([(0.4, 0.2, 0.0), (-0.4, 0.6, 0.0), (0.0, 0.9, 0.0)])
     emukit_model = mf_bayes_opt(dataloader_high, dataloader_low, x_space, y_space, X1_init, X2_init, logger=LOGGER)
 
     # Get predictions
@@ -114,6 +118,8 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points):
         variance_plot_low=plot_variance(var_plot_low, num_points, emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
         num_high_fidelity_samples = np.sum(emukit_model.X[:, 2] == 0) - len(X1_init),
         num_low_fidelity_samples = np.sum(emukit_model.X[:, 2] == 1) - len(X2_init),
+        # num_high_fidelity_samples = np.sum(emukit_model.X[:, 2] == 1) - len(X1_init),
+        # num_low_fidelity_samples = np.sum(emukit_model.X[:, 2] == 0) - len(X2_init),
     ))
     # plt.close('all')
 
@@ -199,13 +205,13 @@ def main(use_wandb=True):
         # lon = 4.855,
         # points with water
         lat = -82.8642,
-        lon = 42.33
+        lon = 42.33,
         data_load_type = 'optimal', #   'api', 'local' or 'optimal'(takes local if exist)
         veg_idx_band = 'NDVI', # Choose vegetation index band. For our datasets, either 'NDVI' or 'EVI'.
     )
     config.update({
         NUM_FIDELITIES: 2,
-        NUM_ITER: 30,
+        NUM_ITER: 50,
         KERNELS: RBF,
         KERNEL_COMBINATION: SUM,
         MATERN32_LENGTHSCALE: 130,

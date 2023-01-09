@@ -13,7 +13,6 @@ from emukit.core.acquisition import Acquisition
 from emukit.core.loop import FixedIntervalUpdater, OuterLoop, SequentialPointCalculator
 from emukit.core.loop.loop_state import create_loop_state
 from emukit.core.optimization.multi_source_acquisition_optimizer import MultiSourceAcquisitionOptimizer
-from emukit.core.optimization import gradient_acquisition_optimizer
 from emukit.core.loop.user_function import MultiSourceFunctionWrapper
 from emukit.bayesian_optimization.acquisitions.max_value_entropy_search import MUMBO
 from emukit.experimental_design.acquisitions import ModelVariance, IntegratedVarianceReduction
@@ -22,9 +21,9 @@ from emukit.experimental_design.acquisitions import ModelVariance, IntegratedVar
 from data import DataLoad
 from constants import *
 from custom_loop import CustomLoop
-from custom_kernels import WaterRBFKernel
+from custom_kernels import CustomLinearMultiFidelityKernel
 from vegetation import WaterUtils
-from src.local_ivr import LocalBatchPointCalculator, LatinHypercubeMaximaIdentifier
+from local_ivr import LocalBatchPointCalculator, LatinHypercubeMaximaIdentifier
 
 
 def kernel(config):
@@ -180,13 +179,14 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     # Custom kernels
     vegetationDataLoader = DataLoad(source = "COPERNICUS/Landcover/100m/Proba-V-C3/Global", center_point = np.array([[-82.8642, 42.33]]), num_points = 101, scale = 250, veg_idx_band = 'discrete_classification', data_load_type = 'optimal')
     water_utils = WaterUtils(dataLoader = vegetationDataLoader, water_value = 80)
-    bitmask_land_land, bitmask_land_water, bitmask_water_water = water_utils.get_bitmasks()
-    high_fidelity_water_rbf_kernel = WaterRBFKernel(input_dim = 1, variance_land = 20, lengthscale_land = 3, bitmask_land_land = bitmask_land_land, bitmask_water_water = bitmask_water_water)
-    kernels = [kernel(config), high_fidelity_water_rbf_kernel] # NOTE: This list must be in order of low to high fidelity
+    bitmask_land_land, bitmask_land_water, bitmask_water_water, class_map_dict = water_utils.get_bitmasks()
+    # high_fidelity_water_rbf_kernel = WaterRBFKernel(input_dim = 1, variance_land = 20, lengthscale_land = 3, bitmask_land_land = bitmask_land_land, bitmask_water_water = bitmask_water_water)
+    # kernels = [kernel(config), high_fidelity_water_rbf_kernel] # NOTE: This list must be in order of low to high fidelity
 
     kernels = [kernel(config), GPy.kern.RBF(input_dim=2, lengthscale=3, variance=20.0)] # NOTE: This list must be in order of low to high fidelity
-    linear_mf_kernel = LinearMultiFidelityKernel(kernels)
-    gpy_linear_mf_model = GPyLinearMultiFidelityModel(X_init, Y_init, linear_mf_kernel, n_fidelities=config[NUM_FIDELITIES])
+    # linear_mf_kernel = LinearMultiFidelityKernel(kernels)
+    custom_linear_mf_kernel = CustomLinearMultiFidelityKernel(kernels, class_map_dict)
+    gpy_linear_mf_model = GPyLinearMultiFidelityModel(X_init, Y_init, custom_linear_mf_kernel, n_fidelities=config[NUM_FIDELITIES])
     gpy_linear_mf_model.mixed_noise.Gaussian_noise.fix(0)
     gpy_linear_mf_model.mixed_noise.Gaussian_noise_1.fix(0)
     
