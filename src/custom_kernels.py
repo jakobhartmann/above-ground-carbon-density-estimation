@@ -19,7 +19,7 @@ from GPy.kern.src.kern import CombinationKernel
 
 
 class CustomLinearMultiFidelityKernel(CombinationKernel):
-    def __init__(self, kernels, class_map_dict):
+    def __init__(self, kernels, water_kernels, class_map_dict):
         """
         This kernel is used for multi-fidelity problems.
         Args:
@@ -40,6 +40,7 @@ class CustomLinearMultiFidelityKernel(CombinationKernel):
         """
 
         self.kernels = kernels
+        self.water_kernels = water_kernels
         self.n_fidelities = len(kernels)
 
         super(CustomLinearMultiFidelityKernel, self).__init__(kernels=self.kernels, name="custom_linear_multi_fidelity_kernel", extra_dims=[-1])
@@ -52,61 +53,52 @@ class CustomLinearMultiFidelityKernel(CombinationKernel):
 
     def generate_bitmasks(self, x_this, x2_this):
         class_map = np.zeros((x_this.shape[0], x2_this.shape[0]))
-        # print('x_this: ', x_this)
-        # print('x2_this: ', x2_this)
+        
+        # Make sure all points are rounded and even at the second decimal place, otherwise we will get a key error during lookup
+        x_this = np.round(x_this, 2)
+        x2_this = np.round(np.round(x2_this * 50) / 50, 2)
 
         for i in range(x_this.shape[0]):
-            y, x, _ = np.round(x_this[i], 2)
-            for j in range(x2_this.shape[0]): # only start at i
-                y2, x2, _ = np.round(x2_this[j], 2)
+            y, x, _ = x_this[i]
+            for j in range(x2_this.shape[0]):
+                y2, x2, _ = x2_this[j]
 
-                try:
-                    class_map[i][j] = self.class_map_dict[(y, x, y2, x2)]
-                except IndexError:
-                    print('IndexError!')
-                except:
-                    # print('x: ', x)
-                    # print('y: ', y)
-                    # print('x2: ', x2)
-                    # print('y2: ', y2)
+                class_map[i][j] = self.class_map_dict[(y, x, y2, x2)]
 
-                    arr = [y, x, y2, x2]
-
-                    for n in range(len(arr)):
-                        if (np.round(arr[n] * 100) % 2) != 0:
-                            arr[n] = np.round(arr[n], 2) + 0.01
-
-                    y, x, y2, x2 = np.round(arr, 2)
-
-                    class_map[i][j] = self.class_map_dict[(y, x, y2, x2)]
-
-                # class_map[j][i] = self.class_map_dict[(y, x, y2, x2)]
-
-                # If both points are identical and in water, set it to 0
-                # if y == y2 and x == x2 and self.class_map_dict[(y, x, y2, x2)] == 2:
-                #     class_map[i][j] = 0
-        
-                # print('class_map_dict: ', self.class_map_dict[(y, x, y2, x2)])
-
-        # print('class_map: ', class_map)
+                # If both points are identical and in water, set it to 3 -> variance of water points will be 0
+                if y == y2 and x == x2 and self.class_map_dict[(y, x, y2, x2)] == 2:
+                    class_map[i][j] = 3
 
         bitmask_land_land = class_map == 0
         bitmask_land_water = class_map == 1 # not needed
         bitmask_water_water = class_map == 2
+        bitmask_water_water_var = class_map == 3
 
-        return bitmask_land_land, bitmask_land_water, bitmask_water_water
+        '''bitmask = bitmask_land_land.astype(int) + bitmask_land_water.astype(int) + bitmask_water_water.astype(int) + bitmask_water_water_var.astype(int)
+        if bitmask.shape[1] > 0:
+            if np.any(bitmask != 1):
+                print('K: Error!')'''
+
+        return bitmask_land_land, bitmask_land_water, bitmask_water_water, bitmask_water_water_var
 
     def generate_bitmask_diag(self, x_this):
         class_map_diag = np.zeros((x_this.shape[0]))
+
+        # Make sure all points are rounded and even at the second decimal place, otherwise we will get a key error during lookup
+        x_this = np.round(np.round(x_this * 50) / 50, 2)
+
         for i in range(x_this.shape[0]):
-            y, x, _ = np.round(x_this[i])
+            y, x, _ = x_this[i]
             class_map_diag[i] = self.class_map_dict[(y, x, y, x)]
         
         bitmask_land_land_diag = class_map_diag == 0
-        bitmask_land_water_diag = class_map_diag == 1 # not needed
         bitmask_water_water_diag = class_map_diag == 2
 
-        return bitmask_land_land_diag, bitmask_land_water_diag, bitmask_water_water_diag
+        '''bitmask = bitmask_land_land_diag.astype(int) + bitmask_water_water_diag.astype(int)
+        if np.any(bitmask != 1):
+            print('KDiag: Error!')'''
+
+        return bitmask_land_land_diag, bitmask_water_water_diag
 
     def K(self, X, X2=None):
         """
@@ -127,18 +119,18 @@ class CustomLinearMultiFidelityKernel(CombinationKernel):
                 x2_this = X2[X2[:, -1] == i, :]
                 for k in range(np.min((j + 1, i + 1))):
                     kernel = self.kernels[k].K(x_this, x2_this)
+                    water_kernel = self.water_kernels[k].K(x_this, x2_this)
                     scale_1 = np.prod(self.scaling_param[k:i])
                     scale_2 = np.prod(self.scaling_param[k:j])
                     scale = scale_1 * scale_2
-                    K[idx] += scale * kernel
+
+                    bitmask_land_land, bitmask_land_water, bitmask_water_water, bitmask_water_water_var = self.generate_bitmasks(x_this, x2_this)
+                    K[idx] += scale * kernel * bitmask_land_land
+                    K[idx] += scale * water_kernel * (bitmask_water_water + bitmask_water_water_var)
                 
-                bitmask_land_land, bitmask_land_water, bitmask_water_water = self.generate_bitmasks(x_this, x2_this)
-                # print(K[idx])
-                assert(K[idx].shape == bitmask_land_land.shape)
-                K[idx] = K[idx] * (bitmask_land_land + bitmask_water_water + 0.5 * bitmask_land_water)
-                # K[idx] = K[idx] + bitmask_water_water * np.max(K[idx])
-                # print(K[idx])
-                # print()
+        # If we don't use water kernels, we can apply the bitmasks on the whole covariance matrix!!!
+        # bitmask_land_land, bitmask_land_water, bitmask_water_water, bitmask_water_water_var = self.generate_bitmasks(X, X2)
+        # K = K * (bitmask_land_land + 0 * bitmask_land_water + 1 * bitmask_water_water + 1 * bitmask_water_water_var)
 
         return K
 
@@ -154,12 +146,16 @@ class CustomLinearMultiFidelityKernel(CombinationKernel):
             idx = np.ix_(X[:, -1] == i)
             for j in range(i + 1):
                 kernel = self.kernels[j].Kdiag(X[idx])
+                water_kernel = self.water_kernels[j].Kdiag(X[idx])
                 scale = np.prod(self.scaling_param[j:i] ** 2)
-                k_diag[idx] += scale * kernel
 
-            # bitmask_land_land_diag, bitmask_land_water_diag, bitmask_water_water_diag = self.generate_bitmask_diag(X[idx])
-            # k_diag[idx] = k_diag[idx] * (bitmask_land_land_diag * bitmask_water_water_diag)
-            # k_diag[idx] = k_diag[idx] + bitmask_water_water_diag * np.max(k_diag[idx])
+                bitmask_land_land_diag, bitmask_water_water_diag = self.generate_bitmask_diag(X[idx])
+                k_diag[idx] += scale * kernel * bitmask_land_land_diag
+                k_diag[idx] += scale * water_kernel * bitmask_water_water_diag
+
+        # If we don't use water kernels, we can apply the bitmasks on the whole vector!!!
+        # bitmask_land_land_diag, bitmask_water_water_diag = self.generate_bitmask_diag(X)
+        # k_diag = k_diag * (bitmask_land_land_diag + 1 * bitmask_water_water_diag)
 
         return k_diag
 
