@@ -21,11 +21,8 @@ from emukit.experimental_design.acquisitions import ModelVariance, IntegratedVar
 from data import DataLoad
 from constants import *
 from custom_loop import CustomLoop
-<<<<<<< src/bayes_opt.py
 from custom_kernels import CustomLinearMultiFidelityKernel
 from vegetation import WaterUtils
-=======
->>>>>>> src/bayes_opt.py
 from local_ivr import LocalBatchPointCalculator, LatinHypercubeMaximaIdentifier
 
 
@@ -183,7 +180,6 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     ground_truth_high = dataloader1.load_data_local()
     ground_truth_high_reshaped = ground_truth_high.reshape(dataloader1.num_points ** 2, 1)
 
-<<<<<<< src/bayes_opt.py
     # Custom kernels
     vegetationDataLoader = DataLoad(source = "COPERNICUS/Landcover/100m/Proba-V-C3/Global", center_point = np.array([[-82.8642, 42.33]]), num_points = 101, scale = 250, veg_idx_band = 'discrete_classification', data_load_type = 'optimal')
     water_utils = WaterUtils(dataLoader = vegetationDataLoader, water_value = 80)
@@ -198,12 +194,6 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     # linear_mf_kernel = LinearMultiFidelityKernel(kernels)
     custom_linear_mf_kernel = CustomLinearMultiFidelityKernel(kernels, water_kernels, class_map_dict)
     gpy_linear_mf_model = GPyLinearMultiFidelityModel(X_init, Y_init, custom_linear_mf_kernel, n_fidelities=config[NUM_FIDELITIES])
-=======
-
-    kernels = [kernel(config, LOW), kernel(config, HIGH)] # NOTE: This list must be in order of low to high fidelity
-    linear_mf_kernel = LinearMultiFidelityKernel(kernels)
-    gpy_linear_mf_model = GPyLinearMultiFidelityModel(X_init, Y_init, linear_mf_kernel, n_fidelities=config[NUM_FIDELITIES])
->>>>>>> src/bayes_opt.py
     gpy_linear_mf_model.mixed_noise.Gaussian_noise.fix(0)
     gpy_linear_mf_model.mixed_noise.Gaussian_noise_1.fix(0)
     
