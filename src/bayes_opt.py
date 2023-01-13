@@ -13,7 +13,6 @@ from emukit.core.acquisition import Acquisition
 from emukit.core.loop import FixedIntervalUpdater, OuterLoop, SequentialPointCalculator
 from emukit.core.loop.loop_state import create_loop_state
 from emukit.core.optimization.multi_source_acquisition_optimizer import MultiSourceAcquisitionOptimizer
-from emukit.core.optimization import gradient_acquisition_optimizer
 from emukit.core.loop.user_function import MultiSourceFunctionWrapper
 from emukit.bayesian_optimization.acquisitions.max_value_entropy_search import MUMBO
 from emukit.experimental_design.acquisitions import ModelVariance, IntegratedVarianceReduction
@@ -22,6 +21,11 @@ from emukit.experimental_design.acquisitions import ModelVariance, IntegratedVar
 from data import DataLoad
 from constants import *
 from custom_loop import CustomLoop
+<<<<<<< src/bayes_opt.py
+from custom_kernels import CustomLinearMultiFidelityKernel
+from vegetation import WaterUtils
+=======
+>>>>>>> src/bayes_opt.py
 from local_ivr import LocalBatchPointCalculator, LatinHypercubeMaximaIdentifier
 
 
@@ -179,10 +183,27 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     ground_truth_high = dataloader1.load_data_local()
     ground_truth_high_reshaped = ground_truth_high.reshape(dataloader1.num_points ** 2, 1)
 
+<<<<<<< src/bayes_opt.py
+    # Custom kernels
+    vegetationDataLoader = DataLoad(source = "COPERNICUS/Landcover/100m/Proba-V-C3/Global", center_point = np.array([[-82.8642, 42.33]]), num_points = 101, scale = 250, veg_idx_band = 'discrete_classification', data_load_type = 'optimal')
+    water_utils = WaterUtils(dataLoader = vegetationDataLoader, water_value = 80)
+    print('Loading class map dict...')
+    _, _, _, class_map_dict = water_utils.get_bitmasks()
+    print('Class map dict loaded.')
+    # high_fidelity_water_rbf_kernel = WaterRBFKernel(input_dim = 1, variance_land = 20, lengthscale_land = 3, bitmask_land_land = bitmask_land_land, bitmask_water_water = bitmask_water_water)
+    # kernels = [kernel(config), high_fidelity_water_rbf_kernel] # NOTE: This list must be in order of low to high fidelity
+
+    kernels = [kernel(config, LOW), kernel(config, HIGH)] # NOTE: This list must be in order of low to high fidelity
+    water_kernels = [GPy.kern.RBF(input_dim=2, lengthscale=0.1, variance=1.0), GPy.kern.RBF(input_dim=2, lengthscale=0.2, variance=0.1)] # NOTE: This list must be in order of low to high fidelity
+    # linear_mf_kernel = LinearMultiFidelityKernel(kernels)
+    custom_linear_mf_kernel = CustomLinearMultiFidelityKernel(kernels, water_kernels, class_map_dict)
+    gpy_linear_mf_model = GPyLinearMultiFidelityModel(X_init, Y_init, custom_linear_mf_kernel, n_fidelities=config[NUM_FIDELITIES])
+=======
 
     kernels = [kernel(config, LOW), kernel(config, HIGH)] # NOTE: This list must be in order of low to high fidelity
     linear_mf_kernel = LinearMultiFidelityKernel(kernels)
     gpy_linear_mf_model = GPyLinearMultiFidelityModel(X_init, Y_init, linear_mf_kernel, n_fidelities=config[NUM_FIDELITIES])
+>>>>>>> src/bayes_opt.py
     gpy_linear_mf_model.mixed_noise.Gaussian_noise.fix(0)
     gpy_linear_mf_model.mixed_noise.Gaussian_noise_1.fix(0)
     
@@ -192,17 +213,17 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
 
     # Acquisition function
     cost_acquisition = Cost([config[HIGH_FIDELITY_COST], config[LOW_FIDELITY_COST]])
-    acquisition = MultiInformationSourceEntropySearch(emukit_model, space) / cost_acquisition
-    mumbo_acquisition = MUMBO(emukit_model, space, num_samples=5, grid_size=500) / cost_acquisition
+    # acquisition = MultiInformationSourceEntropySearch(emukit_model, space) / cost_acquisition
+    # mumbo_acquisition = MUMBO(emukit_model, space, num_samples=5, grid_size=500) / cost_acquisition
     model_variance = ModelVariance(emukit_model) / cost_acquisition
-    integrated_variance_reduction = IntegratedVarianceReduction(emukit_model, space) / cost_acquisition
+    # integrated_variance_reduction = IntegratedVarianceReduction(emukit_model, space) / cost_acquisition
     # Create Outer Loop
     initial_loop_state = create_loop_state(X_init, Y_init)
     acquisition_optimizer = MultiSourceAcquisitionOptimizer(GradientAcquisitionOptimizer(space), space)
     candidate_point_calculator = SequentialPointCalculator(model_variance, acquisition_optimizer)
     # hypercube_maxima = LatinHypercubeMaximaIdentifier(4)
     # candidate_point_calculator = LocalBatchPointCalculator(emukit_model, [3, 1], x_plot_high[:, :2], x_space.shape[0],
-    #                                                        x_space.shape[0], 15, hypercube_maxima, 21, 3, True)
+    #                                                         x_space.shape[0], 15, hypercube_maxima, 21, 3, True)
     model_updater = FixedIntervalUpdater(emukit_model)
     loop = OuterLoop(candidate_point_calculator, model_updater, initial_loop_state)
     # loop = CustomLoop(candidate_point_calculator, model_updater, initial_loop_state, step)

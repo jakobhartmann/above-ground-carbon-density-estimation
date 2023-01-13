@@ -15,9 +15,9 @@ class DataLoad:
         self.data_load_type = data_load_type
 
     # load data depending on the chosen type
-    def load_data(self):
+    def load_data(self, vegetation = False):
         if self.data_load_type == 'api':
-            return self.load_data_api()
+            return self.load_data_api(vegetation)
         if self.data_load_type == 'local':
             return self.load_data_local()
         if self.data_load_type == 'optimal':
@@ -26,7 +26,7 @@ class DataLoad:
                 return self.load_data_local()
             else: 
                 # calls api and saves data to local file
-                self.load_data_api()
+                self.load_data_api(vegetation)
                 self.save_data()
                 return self.dataset
         
@@ -34,12 +34,15 @@ class DataLoad:
         assert(0)
 
     # Load data from api
-    def load_data_api(self,):
+    def load_data_api(self, vegetation):
         # Trigger the authentication flow. Can comment out if auth token cached, eg after running it once
         # ee.Authenticate(auth_mode="notebook")
         # Initialize the library.
         ee.Initialize()
-        source_dataset = ee.ImageCollection(self.source)
+        if vegetation:
+            source_dataset = ee.ImageCollection(self.source).select(self.veg_idx_band)
+        else:
+            source_dataset = ee.ImageCollection(self.source)
 
         # Setup the domain of our estimation
         x_space = np.linspace(-1, 1, self.num_points)
@@ -73,7 +76,10 @@ class DataLoad:
                 'scale': self.scale,
                 'reducer': 'mean'}).getInfo()
             for sample in samples['features']:
-                dataset = np.append(dataset, [sample['properties'][self.veg_idx_band]])
+                if vegetation:
+                    dataset = np.append(dataset, [sample['properties']['mean']])
+                else:
+                    dataset = np.append(dataset, [sample['properties'][self.veg_idx_band]])
         self.dataset = dataset.reshape([self.num_points, self.num_points])
         return self.dataset
 

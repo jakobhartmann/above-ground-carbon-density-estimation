@@ -59,7 +59,7 @@ class CustomLogger:
             wandb.log(data)
 
     def log_metrics(self, ground_truth_reshaped, mu_plot, std_plot, mu_unseen, std_unseen, ground_truth_unseen):
-        L1, L2, MSE, PSNR, SSIM, MPDF_unseen, MPDF_all = calc_metrics(mu_plot, std_plot, ground_truth_reshaped, mu_unseen, std_unseen, ground_truth_unseen)
+        L1, L2, MSE, PSNR, SSIM, MPDF_unseen, MPDF_all, KL, ModelVariance_unseen, ModelVariance_all = calc_metrics(mu_plot, std_plot, ground_truth_reshaped, mu_unseen, std_unseen, ground_truth_unseen)
 
         self.log(dict(
             L1 = L1,
@@ -69,5 +69,8 @@ class CustomLogger:
             SSIM = SSIM,
             MPDF_unseen = MPDF_unseen,
             MPDF_all = MPDF_all,
+            KL = KL,
+            ModelVariance_unseen = ModelVariance_unseen,
+            ModelVariance_all = ModelVariance_all
         ))
 

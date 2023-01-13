@@ -13,8 +13,16 @@ def mse(bo_mean, ground_truth):
     return np.mean((bo_mean - ground_truth) ** 2)
 
 
+def model_variance(bo_std):
+    return np.mean(bo_std ** 2)
+
+
 def mpdf(bo_mean, bo_std, ground_truth):
     return np.mean(norm.pdf(ground_truth, bo_mean, bo_std))
+
+
+def kl(bo_mean, bo_var, ground_truth, ground_truth_var = 10 ** -8):
+    return np.mean(np.log(bo_var / ground_truth_var) + ((ground_truth_var + (ground_truth - bo_mean) ** 2) / (2 * bo_var)) - 0.5)
 
 
 def psnr(bo_mean, ground_truth):
@@ -74,4 +82,8 @@ def calc_metrics(mu_plot, std_plot, ground_truth_reshaped, mu_unseen, std_unseen
     SSIM = ssim(mu_plot, ground_truth_reshaped)
     MPDF_unseen = mpdf(mu_unseen, std_unseen, ground_truth_unseen)
     MPDF_all = mpdf(mu_plot, std_plot, ground_truth_reshaped)
-    return L1,L2,MSE,PSNR,SSIM,MPDF_unseen,MPDF_all
+    KL = kl(ground_truth_unseen, 10 ** -8, mu_unseen, std_unseen ** 2)
+    ModelVariance_unseen = model_variance(std_unseen)
+    ModelVariance_all = model_variance(std_plot)
+    
+    return L1, L2, MSE, PSNR, SSIM, MPDF_unseen, MPDF_all, KL, ModelVariance_unseen, ModelVariance_all
