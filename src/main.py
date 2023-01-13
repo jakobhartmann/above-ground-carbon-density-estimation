@@ -199,7 +199,7 @@ def main(use_wandb=True):
         lon = 4.855,
         # points with water
         # lat = -82.8642,
-        # lon = 42.33
+        # lon = 42.33,
         data_load_type = 'optimal', #   'api', 'local' or 'optimal'(takes local if exist)
         veg_idx_band = 'NDVI', # Choose vegetation index band. For our datasets, either 'NDVI' or 'EVI'.
     )
@@ -207,15 +207,24 @@ def main(use_wandb=True):
         NUM_FIDELITIES: 2,
         NUM_ITER: 30,
         KERNELS: RBF,
+        KERNELS_LOW: RBF,
         KERNEL_COMBINATION: SUM,
         MATERN32_LENGTHSCALE: 130,
         MATERN32_VARIANCE: 1.0,
-        RBF_LENGTHSCALE: 0.1,
-        RBF_VARIANCE: 20.0,
+        RBF_LENGTHSCALE: 0.3, # Make this 0.08 for single fidelity
+        RBF_VARIANCE: 2.0, # Make this 20.0 for single fidelity
         WHITE_VARIANCE: 20.0,
         PERIODIC_LENGTHSCALE: 0.08,
         PERIODIC_PERIOD: 1.0,
         PERIODIC_VARIANCE: 20.0,
+        MATERN32_LENGTHSCALE_LOW: 130,
+        MATERN32_VARIANCE_LOW: 1.0,
+        RBF_LENGTHSCALE_LOW: 0.1, # 3.0
+        RBF_VARIANCE_LOW: 20.0, # 
+        WHITE_VARIANCE_LOW: 20.0,
+        PERIODIC_LENGTHSCALE_LOW: 0.08,
+        PERIODIC_PERIOD_LOW: 1.0,
+        PERIODIC_VARIANCE_LOW: 20.0,
         MODEL_NOISE_VARIANCE: 1e-13,
         OPTIMIZATION_RESTARTS: 0,
         OPTIMIZER_UPDATE_INTERVAL: 1,
@@ -244,7 +253,7 @@ if __name__ == '__main__':
 
     # Define the kernel parameter search
     sweep_config = {
-        'name': 'Kernel param search: random, matern only',
+        'name': 'Kernel param search: MF using RBF and RBF',
         'method': 'random',
         'metric': {
             'name': 'L2',
@@ -253,6 +262,9 @@ if __name__ == '__main__':
     }
     parameters_dict = {
         # KERNELS: {
+        #     'values': [RBF, MATERN32, PERIODIC, WHITE, EXPONENTIAL, RBF+SEPARATOR+PERIODIC+SEPARATOR+WHITE, MATERN32+SEPARATOR+PERIODIC+SEPARATOR+WHITE],
+        # },
+        # KERNELS_LOW: {
         #     'values': [RBF, MATERN32, PERIODIC, WHITE, EXPONENTIAL, RBF+SEPARATOR+PERIODIC+SEPARATOR+WHITE, MATERN32+SEPARATOR+PERIODIC+SEPARATOR+WHITE],
         # },
         # KERNEL_COMBINATION: {
@@ -282,10 +294,6 @@ if __name__ == '__main__':
         #     'max': 10**2,
         #     # 'values': np.linspace(0.0, 50.0, 10),
         # },
-        # 'Matern_nu': {
-        #     'distribution': 'categorical',
-        #     'values': [0.5, 1.5, 2.5] #, np.inf],
-        # },
         # WHITE_VARIANCE: {
         #     'distribution': 'log_uniform_values',
         #     'min': 10**(-2),
@@ -302,6 +310,50 @@ if __name__ == '__main__':
         #     'max': 10**2,
         # },
         # PERIODIC_VARIANCE: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-2),
+        #     'max': 10**2,
+        # },
+        RBF_LENGTHSCALE_LOW: {
+            'distribution': 'log_uniform_values', # or 'uniform',
+            'min': 10**(-3),
+            'max': 10**(3),
+            # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
+        },
+        RBF_VARIANCE_LOW: {
+            'distribution': 'log_uniform_values',
+            'min': 10**(-1),
+            'max': 10**2,
+            # 'values': np.linspace(0.0, 50.0, 10),
+        },
+        # MATERN32_LENGTHSCALE_LOW: {
+        #     'distribution': 'log_uniform_values', # or 'uniform',
+        #     'min': 10**(-3),
+        #     'max': 10**(3),
+        #     # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
+        # },
+        # MATERN32_VARIANCE_LOW: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-1),
+        #     'max': 10**2,
+        #     # 'values': np.linspace(0.0, 50.0, 10),
+        # },
+        # WHITE_VARIANCE_LOW: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-2),
+        #     'max': 10**2,
+        # },
+        # PERIODIC_LENGTHSCALE_LOW: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-3),
+        #     'max': 10**(3),
+        # },
+        # PERIODIC_PERIOD_LOW: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-2),
+        #     'max': 10**2,
+        # },
+        # PERIODIC_VARIANCE_LOW: {
         #     'distribution': 'log_uniform_values',
         #     'min': 10**(-2),
         #     'max': 10**2,

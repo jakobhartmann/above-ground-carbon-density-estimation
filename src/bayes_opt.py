@@ -22,20 +22,24 @@ from emukit.experimental_design.acquisitions import ModelVariance, IntegratedVar
 from data import DataLoad
 from constants import *
 from custom_loop import CustomLoop
-from src.local_ivr import LocalBatchPointCalculator, LatinHypercubeMaximaIdentifier
+from local_ivr import LocalBatchPointCalculator, LatinHypercubeMaximaIdentifier
 
 
-def kernel(config):
+def kernel(config, fidelity=HIGH):
+    # Since our param names for HIGH fidelity don't include prefix, we need to remove it. See constants.py
+    fidelity_suffix = SEPARATOR + str(fidelity)
+    if fidelity == HIGH:
+        fidelity_suffix = ''
     print("Using kernels: ", config[KERNELS], " with combination: ", config[KERNEL_COMBINATION])
     combination = []
-    if RBF in config[KERNELS].lower():
-        combination.append(GPy.kern.RBF(input_dim=2, lengthscale=config[RBF_LENGTHSCALE], variance=config[RBF_VARIANCE]))
-    if WHITE in config[KERNELS]:
-        combination.append(GPy.kern.White(input_dim=2, variance=config[WHITE_VARIANCE]))
-    if PERIODIC in config[KERNELS]:
-        combination.append(GPy.kern.StdPeriodic(input_dim=2, lengthscale=config[PERIODIC_LENGTHSCALE], period=config[PERIODIC_PERIOD], variance=config[PERIODIC_VARIANCE]))
-    if MATERN32 in config[KERNELS]:
-        combination.append(GPy.kern.Matern32(input_dim=2, lengthscale=config[MATERN32_LENGTHSCALE], variance=config[MATERN32_VARIANCE]))
+    if RBF in config[KERNELS + fidelity_suffix].lower():
+        combination.append(GPy.kern.RBF(input_dim=2, lengthscale=config[RBF_LENGTHSCALE + fidelity_suffix], variance=config[RBF_VARIANCE + fidelity_suffix]))
+    if WHITE in config[KERNELS + fidelity_suffix]:
+        combination.append(GPy.kern.White(input_dim=2, variance=config[WHITE_VARIANCE + fidelity_suffix]))
+    if PERIODIC in config[KERNELS + fidelity_suffix]:
+        combination.append(GPy.kern.StdPeriodic(input_dim=2, lengthscale=config[PERIODIC_LENGTHSCALE + fidelity_suffix], period=config[PERIODIC_PERIOD + fidelity_suffix], variance=config[PERIODIC_VARIANCE + fidelity_suffix]))
+    if MATERN32 in config[KERNELS + fidelity_suffix]:
+        combination.append(GPy.kern.Matern32(input_dim=2, lengthscale=config[MATERN32_LENGTHSCALE + fidelity_suffix], variance=config[MATERN32_VARIANCE + fidelity_suffix]))
     
     # Return first kernel if only one kernel is used
     if len(combination) == 1:
@@ -176,7 +180,7 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     ground_truth_high_reshaped = ground_truth_high.reshape(dataloader1.num_points ** 2, 1)
 
 
-    kernels = [kernel(config), GPy.kern.RBF(input_dim=2, lengthscale=3, variance=20.0)] # NOTE: This list must be in order of low to high fidelity
+    kernels = [kernel(config, LOW), kernel(config, HIGH)] # NOTE: This list must be in order of low to high fidelity
     linear_mf_kernel = LinearMultiFidelityKernel(kernels)
     gpy_linear_mf_model = GPyLinearMultiFidelityModel(X_init, Y_init, linear_mf_kernel, n_fidelities=config[NUM_FIDELITIES])
     gpy_linear_mf_model.mixed_noise.Gaussian_noise.fix(0)
@@ -196,7 +200,7 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     initial_loop_state = create_loop_state(X_init, Y_init)
     acquisition_optimizer = MultiSourceAcquisitionOptimizer(GradientAcquisitionOptimizer(space), space)
     candidate_point_calculator = SequentialPointCalculator(model_variance, acquisition_optimizer)
-    hypercube_maxima = LatinHypercubeMaximaIdentifier(4)
+    # hypercube_maxima = LatinHypercubeMaximaIdentifier(4)
     # candidate_point_calculator = LocalBatchPointCalculator(emukit_model, [3, 1], x_plot_high[:, :2], x_space.shape[0],
     #                                                        x_space.shape[0], 15, hypercube_maxima, 21, 3, True)
     model_updater = FixedIntervalUpdater(emukit_model)
