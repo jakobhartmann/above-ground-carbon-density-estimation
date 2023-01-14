@@ -1,7 +1,6 @@
 import argparse
 import ee
 import numpy as np
-np.random.seed(20)
 from data import DataLoad, NormalDataLoad
 import wandb
 
@@ -57,13 +56,13 @@ def basic_gp_example_old(target_function, num_points, num_iter):
 
 
 # Do bayesian optimization over a given target function in 2 dimensions
-def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points):
+def mf_gp(dataloader_high:'NormalDataLoad', dataloader_low:'NormalDataLoad', num_points):
     # Setup the domain of our estimation
     x_space = np.linspace(-1, 1, num_points)
     y_space = np.linspace(-1, 1, num_points)
     x_plot = np.meshgrid(x_space, y_space)
-    x_plot_high = np.stack((x_plot[1], x_plot[0], np.zeros(x_plot[0].shape)), axis=-1).reshape(-1, 3)
-    x_plot_low = np.stack((x_plot[1], x_plot[0], np.ones(x_plot[0].shape)), axis=-1).reshape(-1, 3)
+    x_plot_low = np.stack((x_plot[1], x_plot[0], np.zeros(x_plot[0].shape)), axis=-1).reshape(-1, 3)
+    x_plot_high = np.stack((x_plot[1], x_plot[0], np.ones(x_plot[0].shape)), axis=-1).reshape(-1, 3)
     
     # Load Data Pipeline
     dataloader_high.load_data()
@@ -78,9 +77,9 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points):
     dataloader_low.normalize_data(data_max_val, data_min_val)
 
     # Bayesian optimization
-    X1_init = np.array([(0.2, 0.4, 0.0), (0.6, -0.4, 0.0), (0.9, 0.0, 0.0)])
+    X2_init = np.array([(0.2, 0.4, 0.0), (0.6, -0.4, 0.0), (0.9, 0.0, 0.0)])
     # X2_init = np.array([[0.2, 0.4, 1.0], [0.6, -0.4, 1.0], [0.9, 0.0, 1.0]])
-    X2_init = np.array([(0.4, 0.2, 1.0), (-0.4, 0.6, 1.0), (0.0, 0.9, 1.0)])
+    X1_init = np.array([(0.4, 0.2, 1.0), (-0.4, 0.6, 1.0), (0.0, 0.9, 1.0)])
     emukit_model = mf_bayes_opt(dataloader_high, dataloader_low, x_space, y_space, X1_init, X2_init, logger=LOGGER)
 
     # Get predictions
@@ -100,10 +99,14 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points):
     std_unseen_high = np.sqrt(var_unseen_high)
     ground_truth_unseen_high = ground_truth_high_reshaped[idx_unseen]
 
-    # High fidelity metrics
-    LOGGER.log_metrics(ground_truth_high_reshaped, mu_plot_high, std_plot_high, mu_unseen_high, std_unseen_high, ground_truth_unseen_high)
+    num_low_fidelity_samples = np.sum(emukit_model.X[:, 2] == 0) - len(X1_init)
+    num_high_fidelity_samples = np.sum(emukit_model.X[:, 2] == 1) - len(X2_init)
+    cost = num_low_fidelity_samples * LOGGER.config[LOW_FIDELITY_COST] + num_high_fidelity_samples * LOGGER.config[HIGH_FIDELITY_COST]
 
-    mean_plot_high, mean_plot_low = heatmap_comparison_mf(mu_plot_high, mu_plot_low, ground_truth_high, ground_truth_low, num_points,
+    # High fidelity metrics
+    LOGGER.log_metrics(ground_truth_high_reshaped, mu_plot_high, std_plot_high, mu_unseen_high, std_unseen_high, ground_truth_unseen_high, num_low_fidelity_samples, num_high_fidelity_samples, cost)
+
+    mean_plot_low, mean_plot_high = heatmap_comparison_mf(mu_plot_high, mu_plot_low, ground_truth_high, ground_truth_low, num_points,
                                            emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND])
     # Log summary of results
     LOGGER.log(dict(
@@ -112,16 +115,9 @@ def mf_gp(dataloader_high:'DataLoad', dataloader_low:'DataLoad', num_points):
         # mean_plot_low=heatmap_comparison_mf(mu_plot_low, ground_truth_low, num_points, emukit_model, mf_choose=1.0, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
         variance_plot_high=plot_variance(var_plot_high, num_points, emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
         variance_plot_low=plot_variance(var_plot_low, num_points, emukit_model, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
-        num_high_fidelity_samples = np.sum(emukit_model.X[:, 2] == 0) - len(X1_init),
-        num_low_fidelity_samples = np.sum(emukit_model.X[:, 2] == 1) - len(X2_init),
     ))
     # plt.close('all')
 
-    # Show results
-    print("x_plot info:", x_plot_high.shape, np.min(x_plot_high), np.max(x_plot_high))
-    print("mu_plot info:", mu_plot_high.shape,
-          np.min(mu_plot_high), np.max(mu_plot_high))
-    print("y_plot info:", ground_truth_high.shape, np.min(ground_truth_high), np.max(ground_truth_high))
 
 
 # Do bayesian optimization over a given target function in 2 dimensions
@@ -178,12 +174,6 @@ def basic_gp(dataloader, num_points):
         # variance = wandb.plots.HeatMap(x_labels=x_labels, y_labels=y_labels, matrix_values=var_plot.reshape(num_points, num_points)),
     ))
 
-    # Show results
-    print("x_plot info:", x_plot.shape, np.min(x_plot), np.max(x_plot))
-    print("mu_plot info:", mu_plot.shape,
-          np.min(mu_plot), np.max(mu_plot))
-    print("y_plot info:", ground_truth.shape, np.min(ground_truth), np.max(ground_truth))
-
 
 def main(use_wandb=True):
     # ee.Authenticate()
@@ -198,17 +188,22 @@ def main(use_wandb=True):
         scale_low=250, # scale low fidelity
         num_points = 101,  # per direction
         num_points_plot = 101,
-        lat = 45.77,
-        lon = 4.855,
-        # points with water
-        # lat = -82.8642,
-        # lon = 42.33,
+        lat = 4.855,
+        lon = 45.77,
+        # # points with water
+        # lat = 42.33,
+        # lon = -82.8642,
         data_load_type = 'optimal', #   'api', 'local' or 'optimal'(takes local if exist)
         veg_idx_band = 'NDVI', # Choose vegetation index band. For our datasets, either 'NDVI' or 'EVI'.
     )
     config.update({
         NUM_FIDELITIES: 2,
-        NUM_ITER: 150,#60,
+        NUM_ITER: 100,
+        NP_SEED: 20,
+        MAX_COST: 10000000,
+        LOW_FIDELITY_COST: 1.0,
+        HIGH_FIDELITY_COST: 2.0,
+        # Kernels
         KERNELS: RBF,
         KERNELS_LOW: RBF,
         KERNEL_COMBINATION: SUM,
@@ -228,29 +223,54 @@ def main(use_wandb=True):
         PERIODIC_LENGTHSCALE_LOW: 0.08,
         PERIODIC_PERIOD_LOW: 1.0,
         PERIODIC_VARIANCE_LOW: 20.0,
+        # Kernels: specific to water
+        KERNELS_HIGH_WATER: RBF,
+        KERNELS_LOW_WATER: RBF,
+        MATERN32_LENGTHSCALE_HIGH_WATER: 13,
+        MATERN32_VARIANCE_HIGH_WATER: 0.1,
+        RBF_LENGTHSCALE_HIGH_WATER: 0.2,
+        RBF_VARIANCE_HIGH_WATER: 2.0,
+        WHITE_VARIANCE_HIGH_WATER: 20.0,
+        PERIODIC_LENGTHSCALE_HIGH_WATER: 0.08,
+        PERIODIC_PERIOD_HIGH_WATER: 1.0,
+        PERIODIC_VARIANCE_HIGH_WATER: 20.0,
+        MATERN32_LENGTHSCALE_LOW_WATER: 130,
+        MATERN32_VARIANCE_LOW_WATER: 1.0,
+        RBF_LENGTHSCALE_LOW_WATER: 0.1,
+        RBF_VARIANCE_LOW_WATER: 1.0,
+        WHITE_VARIANCE_LOW_WATER: 20.0,
+        PERIODIC_LENGTHSCALE_LOW_WATER: 0.08,
+        PERIODIC_PERIOD_LOW_WATER: 1.0,
+        PERIODIC_VARIANCE_LOW_WATER: 20.0,
+        # Model noise
         MODEL_NOISE_VARIANCE: 1e-13,
+        MIXED_NOISE_LOW: 0,
+        MIXED_NOISE_HIGH: 0,
+        # Internal hyperparameter optimization controls
         OPTIMIZATION_RESTARTS: 0,
         OPTIMIZER_UPDATE_INTERVAL: 1,
         LOW_FIDELITY_COST: 1.0,
-        HIGH_FIDELITY_COST: 3.0,
+        HIGH_FIDELITY_COST: 2.0,
         MATPLOTLIB_BACKEND: 'Agg' if use_wandb else '', # set this to 'Agg' or another non-gui backend for wandb runs
     })
     global LOGGER
     LOGGER = CustomLogger(use_wandb=use_wandb, config=config)
+    np.random.seed(LOGGER.config[NP_SEED])
     center_point = np.array([[LOGGER.config["lat"], LOGGER.config["lon"]]])
-    dataloader_high_fidelity = NormalDataLoad(LOGGER.config["source"], center_point, LOGGER.config["num_points"], LOGGER.config["scale"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
-    basic_gp(dataloader_high_fidelity, LOGGER.config["num_points"])
+    dataloader_low_fidelity = NormalDataLoad(LOGGER.config["source"], center_point, LOGGER.config["num_points"], LOGGER.config["scale"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
+    dataloader_high_fidelity = NormalDataLoad(LOGGER.config["source_low"], center_point, LOGGER.config["num_points"], LOGGER.config["scale_low"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
 
-    # dataloader2 = NormalDataLoad(LOGGER.config["source_low"], center_point, LOGGER.config["num_points"], LOGGER.config["scale_low"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
-
-    # mf_gp(dataloader_high_fidelity, dataloader2, LOGGER.config["num_points"])
+    # basic_gp(dataloader_high_fidelity, LOGGER.config["num_points"])
+    mf_gp(dataloader_high_fidelity, dataloader_low_fidelity, LOGGER.config["num_points"])
     LOGGER.stop_run()
+    # input()
     return
 
 if __name__ == '__main__':
     # take in parameters from the command line
     parser = argparse.ArgumentParser()
     parser.add_argument('--sweep', action='store_true')
+    parser.add_argument('--use_wandb', action='store_true')
     args = parser.parse_args()
 
     # Define the kernel parameter search
@@ -269,6 +289,12 @@ if __name__ == '__main__':
         # KERNELS_LOW: {
         #     'values': [RBF, MATERN32, PERIODIC, WHITE, EXPONENTIAL, RBF+SEPARATOR+PERIODIC+SEPARATOR+WHITE, MATERN32+SEPARATOR+PERIODIC+SEPARATOR+WHITE],
         # },
+        # KERNELS_HIGH_WATER: {
+        #     'values': [RBF, MATERN32, PERIODIC, WHITE, EXPONENTIAL, RBF+SEPARATOR+PERIODIC+SEPARATOR+WHITE, MATERN32+SEPARATOR+PERIODIC+SEPARATOR+WHITE],
+        # },
+        # KERNELS_LOW_WATER: {
+        #     'values': [RBF, MATERN32, PERIODIC, WHITE, EXPONENTIAL, RBF+SEPARATOR+PERIODIC+SEPARATOR+WHITE, MATERN32+SEPARATOR+PERIODIC+SEPARATOR+WHITE],
+        # },
         # KERNEL_COMBINATION: {
         #     'values': [PRODUCT, SUM, ''],
         # },
@@ -278,12 +304,12 @@ if __name__ == '__main__':
             'max': 10**(2),
             # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
         },
-        RBF_VARIANCE: {
-            'distribution': 'log_uniform_values',
-            'min': 10**(-1),
-            'max': 10**2,
-            # 'values': np.linspace(0.0, 50.0, 10),
-        },
+        # RBF_VARIANCE: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-1),
+        #     'max': 10**2,
+        #     # 'values': np.linspace(0.0, 50.0, 10),
+        # },
         # MATERN32_LENGTHSCALE: {
         #     'distribution': 'log_uniform_values', # or 'uniform',
         #     'min': 10**(-1),
@@ -316,7 +342,19 @@ if __name__ == '__main__':
         #     'min': 10**(-2),
         #     'max': 10**2,
         # },
-        # RBF_LENGTHSCALE_LOW: {
+        RBF_LENGTHSCALE_LOW: {
+            'distribution': 'log_uniform_values', # or 'uniform',
+            'min': 10**(-3),
+            'max': 10**(3),
+            # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
+        },
+        RBF_VARIANCE_LOW: {
+            'distribution': 'log_uniform_values',
+            'min': 10**(-1),
+            'max': 10**2,
+            # 'values': np.linspace(0.0, 50.0, 10),
+        },
+        # MATERN32_LENGTHSCALE_LOW: {
         #     'distribution': 'log_uniform_values', # or 'uniform',
         #     'min': 10**(-3),
         #     'max': 10**(3),
@@ -360,6 +398,94 @@ if __name__ == '__main__':
         #     'min': 10**(-2),
         #     'max': 10**2,
         # },
+        RBF_LENGTHSCALE_HIGH_WATER: {
+            'distribution': 'log_uniform_values', # or 'uniform',
+            'min': 10**(-3),
+            'max': 10**(0),
+            # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
+        },
+        # RBF_VARIANCE_HIGH_WATER: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-2),
+        #     'max': 10**2,
+        #     # 'values': np.linspace(0.0, 50.0, 10),
+        # },
+        # MATERN32_LENGTHSCALE_HIGH_WATER: {
+        #     'distribution': 'log_uniform_values', # or 'uniform',
+        #     'min': 10**(-3),
+        #     'max': 10**(0),
+        #     # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
+        # },
+        # MATERN32_VARIANCE_HIGH_WATER: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-1),
+        #     'max': 10**2,
+        #     # 'values': np.linspace(0.0, 50.0, 10),
+        # },
+        # WHITE_VARIANCE_HIGH_WATER: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-2),
+        #     'max': 10**2,
+        # },
+        # PERIODIC_LENGTHSCALE_HIGH_WATER: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-3),
+        #     'max': 10**(3),
+        # },
+        # PERIODIC_PERIOD_HIGH_WATER: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-2),
+        #     'max': 10**2,
+        # },
+        # PERIODIC_VARIANCE_HIGH_WATER: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-2),
+        #     'max': 10**2,
+        # },
+        RBF_LENGTHSCALE_LOW_WATER: {
+            'distribution': 'log_uniform_values', # or 'uniform',
+            'min': 10**(-3),
+            'max': 10**(0),
+            # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
+        },
+        # RBF_VARIANCE_LOW_WATER: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-2),
+        #     'max': 10**2,
+        #     # 'values': np.linspace(0.0, 50.0, 10),
+        # },
+        # MATERN32_LENGTHSCALE_LOW_WATER: {
+        #     'distribution': 'log_uniform_values', # or 'uniform',
+        #     'min': 10**(-3),
+        #     'max': 10**(0),
+        #     # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
+        # },
+        # MATERN32_VARIANCE_LOW_WATER: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-1),
+        #     'max': 10**2,
+        #     # 'values': np.linspace(0.0, 50.0, 10),
+        # },
+        # WHITE_VARIANCE_LOW_WATER: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-2),
+        #     'max': 10**2,
+        # },
+        # PERIODIC_LENGTHSCALE_LOW_WATER: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-3),
+        #     'max': 10**(3),
+        # },
+        # PERIODIC_PERIOD_LOW_WATER: {  
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-2),
+        #     'max': 10**2,
+        # },
+        # PERIODIC_VARIANCE_LOW_WATER: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-2),
+        #     'max': 10**2,
+        # },
         # MODEL_NOISE_VARIANCE: {
         #     'distribution': 'log_uniform_values',
         #     'min': 10**(-10),
@@ -377,5 +503,5 @@ if __name__ == '__main__':
         print('sweep initialized')
         wandb.agent(sweep_id, main, count=20)
     else:
-        main(use_wandb=False)
+        main(use_wandb=args.use_wandb)
 
