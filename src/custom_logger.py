@@ -4,12 +4,12 @@ import matplotlib.figure
 import wandb
 from benchmarking import calc_metrics
 
+# NOTE: On import, this global variable is set to None. Ensure you online import this module once or do not import this variable directly.
 LOGGER = None
 
 
 class CustomLogger:
     def __init__(self, use_wandb: bool, config: Dict[str, Any], sweep_config: Union[Dict[str, Any], None]=None, *args, **kwargs):
-        # NOTE: this is a hack to get around the fact that wandb.init() can't be called twice in the same process
         self.sweep_config: Union[Dict[str, Any], None] = sweep_config
         if use_wandb:
             # wandb.init(project="sensor-placement", entity="camb-mphil", config=config)
@@ -53,12 +53,13 @@ class CustomLogger:
         if wandb.run is None:
             self._print_and_show_log_dict(data)
         else:
-            print("Preprocessing data for wandb")
+            # print("Preprocessing data for wandb")
             data = self._preprocess_log_dict_wandb(data)
-            print(data)
+            # print(data)
             wandb.log(data)
 
-    def log_metrics(self, ground_truth_reshaped, mu_plot, std_plot, mu_unseen, std_unseen, ground_truth_unseen):
+    def log_metrics(self, ground_truth_reshaped, mu_plot, std_plot, mu_unseen, std_unseen, ground_truth_unseen, num_low_fidelity_samples=None, num_high_fidelity_samples=None, cost=None):
+        '''Log metrics to wandb and/or stdout'''
         L1, L2, MSE, PSNR, SSIM, MPDF_unseen, MPDF_all, KL, ModelVariance_unseen, ModelVariance_all = calc_metrics(mu_plot, std_plot, ground_truth_reshaped, mu_unseen, std_unseen, ground_truth_unseen)
 
         self.log(dict(
@@ -73,4 +74,9 @@ class CustomLogger:
             ModelVariance_unseen = ModelVariance_unseen,
             ModelVariance_all = ModelVariance_all
         ))
-
+        if num_low_fidelity_samples is not None:
+            self.log(dict(
+                num_low_fidelity_samples = num_low_fidelity_samples,
+                num_high_fidelity_samples = num_high_fidelity_samples,
+                cost = cost,
+            ))

@@ -70,7 +70,7 @@ class DataLoad:
             
             # Call API
             geom_coords = ee.FeatureCollection(
-            [ee.Geometry.Point(c[0], c[1]) for c in buffer])
+            [ee.Geometry.Point(c[1], c[0]) for c in buffer])
             samples = source_dataset.mean().reduceRegions(**{
                 'collection': geom_coords,
                 'scale': self.scale,
