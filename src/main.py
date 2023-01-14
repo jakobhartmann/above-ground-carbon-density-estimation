@@ -204,19 +204,19 @@ def main(use_wandb=True):
         LOW_FIDELITY_COST: 1.0,
         HIGH_FIDELITY_COST: 2.0,
         # Kernels
-        KERNELS: RBF,
-        KERNELS_LOW: RBF,
+        KERNELS: MATERN32,
+        KERNELS_LOW: MATERN32,
         KERNEL_COMBINATION: SUM,
-        MATERN32_LENGTHSCALE: 2.6277, #130
-        MATERN32_VARIANCE: 0.751,
+        MATERN32_LENGTHSCALE: 44.24350662103242, #2.6277, 
+        MATERN32_VARIANCE: 0.8936964632517727,
         RBF_LENGTHSCALE: 0.1, # Make this 0.08 for single fidelity
         RBF_VARIANCE: 20.0, # Make this 20.0 for single fidelity
         WHITE_VARIANCE: 20.0,
         PERIODIC_LENGTHSCALE: 0.08,
         PERIODIC_PERIOD: 1.0,
         PERIODIC_VARIANCE: 20.0,
-        MATERN32_LENGTHSCALE_LOW: 10.05,#130,
-        MATERN32_VARIANCE_LOW: 1.0,
+        MATERN32_LENGTHSCALE_LOW: 10.055739541561152,#2.48,
+        MATERN32_VARIANCE_LOW: 10.106729305184016,
         RBF_LENGTHSCALE_LOW: 0.1, # 3.0
         RBF_VARIANCE_LOW: 20.0, # 
         WHITE_VARIANCE_LOW: 20.0,
@@ -298,12 +298,12 @@ if __name__ == '__main__':
         # KERNEL_COMBINATION: {
         #     'values': [PRODUCT, SUM, ''],
         # },
-        RBF_LENGTHSCALE: {
-            'distribution': 'log_uniform_values', # or 'uniform',
-            'min': 10**(-2),
-            'max': 10**(2),
-            # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
-        },
+        # RBF_LENGTHSCALE: {
+        #     'distribution': 'log_uniform_values', # or 'uniform',
+        #     'min': 10**(-2),
+        #     'max': 10**(2),
+        #     # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
+        # },
         # RBF_VARIANCE: {
         #     'distribution': 'log_uniform_values',
         #     'min': 10**(-1),
@@ -342,19 +342,7 @@ if __name__ == '__main__':
         #     'min': 10**(-2),
         #     'max': 10**2,
         # },
-        RBF_LENGTHSCALE_LOW: {
-            'distribution': 'log_uniform_values', # or 'uniform',
-            'min': 10**(-3),
-            'max': 10**(3),
-            # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
-        },
-        RBF_VARIANCE_LOW: {
-            'distribution': 'log_uniform_values',
-            'min': 10**(-1),
-            'max': 10**2,
-            # 'values': np.linspace(0.0, 50.0, 10),
-        },
-        # MATERN32_LENGTHSCALE_LOW: {
+        # RBF_LENGTHSCALE_LOW: {
         #     'distribution': 'log_uniform_values', # or 'uniform',
         #     'min': 10**(-3),
         #     'max': 10**(3),
@@ -366,18 +354,18 @@ if __name__ == '__main__':
         #     'max': 10**2,
         #     # 'values': np.linspace(0.0, 50.0, 10),
         # },
-        # MATERN32_LENGTHSCALE_LOW: {
-        #     'distribution': 'log_uniform_values', # or 'uniform',
-        #     'min': 10**(-2),
-        #     'max': 10**(2),
-        #     # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
-        # },
-        # MATERN32_VARIANCE_LOW: {
-        #     'distribution': 'log_uniform_values',
-        #     'min': 10**(-1),
-        #     'max': 10**2,
-        #     # 'values': np.linspace(0.0, 50.0, 10),
-        # },
+        MATERN32_LENGTHSCALE_LOW: {
+            'distribution': 'log_uniform_values', # or 'uniform',
+            'min': 10**(-2),
+            'max': 10**(2),
+            # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
+        },
+        MATERN32_VARIANCE_LOW: {
+            'distribution': 'log_uniform_values',
+            'min': 10**(-1),
+            'max': 10**3,
+            # 'values': np.linspace(0.0, 50.0, 10),
+        },
         # WHITE_VARIANCE_LOW: {
         #     'distribution': 'log_uniform_values',
         #     'min': 10**(-2),
@@ -398,12 +386,12 @@ if __name__ == '__main__':
         #     'min': 10**(-2),
         #     'max': 10**2,
         # },
-        RBF_LENGTHSCALE_HIGH_WATER: {
-            'distribution': 'log_uniform_values', # or 'uniform',
-            'min': 10**(-3),
-            'max': 10**(0),
-            # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
-        },
+        # RBF_LENGTHSCALE_HIGH_WATER: {
+        #     'distribution': 'log_uniform_values', # or 'uniform',
+        #     'min': 10**(-3),
+        #     'max': 10**(0),
+        #     # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
+        # },
         # RBF_VARIANCE_HIGH_WATER: {
         #     'distribution': 'log_uniform_values',
         #     'min': 10**(-2),
@@ -442,12 +430,12 @@ if __name__ == '__main__':
         #     'min': 10**(-2),
         #     'max': 10**2,
         # },
-        RBF_LENGTHSCALE_LOW_WATER: {
-            'distribution': 'log_uniform_values', # or 'uniform',
-            'min': 10**(-3),
-            'max': 10**(0),
-            # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
-        },
+        # RBF_LENGTHSCALE_LOW_WATER: {
+        #     'distribution': 'log_uniform_values', # or 'uniform',
+        #     'min': 10**(-3),
+        #     'max': 10**(0),
+        #     # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
+        # },
         # RBF_VARIANCE_LOW_WATER: {
         #     'distribution': 'log_uniform_values',
         #     'min': 10**(-2),

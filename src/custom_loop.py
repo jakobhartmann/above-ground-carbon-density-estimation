@@ -24,7 +24,7 @@ class CustomLoop(OuterLoop):
         neighbors = self.generate_neighbors()
         for x in x_new:
             true_value = user_function.evaluate(np.array([x]))
-            if x[2] == 0.0:
+            if x[2] == 1.0:
                 final_points = np.append(final_points, np.array([x]), axis=0)
                 continue
             neighbors_3d = np.concatenate((neighbors, np.zeros([1,neighbors.shape[1]])), axis=0)
