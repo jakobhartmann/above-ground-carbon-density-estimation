@@ -41,7 +41,9 @@ def kernel(config, suffix=HIGH) -> GPy.kern.Kern:
         combination.append(GPy.kern.StdPeriodic(input_dim=2, lengthscale=config[PERIODIC_LENGTHSCALE + identifying_suffix], period=config[PERIODIC_PERIOD + identifying_suffix], variance=config[PERIODIC_VARIANCE + identifying_suffix]))
     if MATERN32 in config[KERNELS + identifying_suffix]:
         combination.append(GPy.kern.Matern32(input_dim=2, lengthscale=config[MATERN32_LENGTHSCALE + identifying_suffix], variance=config[MATERN32_VARIANCE + identifying_suffix]))
-    
+    if MATERN52 in config[KERNELS + identifying_suffix]:
+        combination.append(GPy.kern.Matern52(input_dim=2, lengthscale=config[MATERN52_LENGTHSCALE + identifying_suffix], variance=config[MATERN52_VARIANCE + identifying_suffix]))
+
     # Return first kernel if only one kernel is used
     if len(combination) == 1:
         return combination[0]
@@ -175,8 +177,8 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
 
     step = [np.abs(x_space[0]-x_space[1]), np.abs(y_space[0]-y_space[1])]
 
-    Y1_init = dataloader1.load_values(X1_init)
-    Y2_init = dataloader2.load_values(X2_init)
+    Y1_init = dataloader1.load_values(X1_init) # low fidelity
+    Y2_init = dataloader2.load_values(X2_init) # high fidelity
     Y_init = np.concatenate((Y1_init, Y2_init))
     X_init = np.concatenate((X1_init, X2_init))
 
@@ -202,7 +204,7 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
 
     kernels = [kernel(config, LOW), kernel(config, HIGH)] # NOTE: This list must be in order of low to high fidelity
     linear_mf_kernel = LinearMultiFidelityKernel(kernels)
-    gpy_linear_mf_model = GPyLinearMultiFidelityModel(X_init, Y_init, linear_mf_kernel, n_fidelities=config[NUM_FIDELITIES])
+    gpy_linear_mf_model = GPyLinearMultiFidelityModel(X_init, Y_init, linear_mf_kernel, n_fidelities=config[NUM_FIDELITIES]) # type: ignore
     gpy_linear_mf_model.mixed_noise.Gaussian_noise.fix(config[MIXED_NOISE_LOW])
     gpy_linear_mf_model.mixed_noise.Gaussian_noise_1.fix(config[MIXED_NOISE_HIGH])
     
@@ -231,7 +233,7 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     stopping_condition = CostStoppingCondition(config[NUM_ITER], config[MAX_COST])
 
     def log_metrics_mf(loop, loop_state: LoopState):
-        print(f'Logging metrics on iteration {loop_state.iteration}')
+        # print(f'Logging metrics on iteration {loop_state.iteration}')
         # Get predictions
         mu_plot_high, var_plot_high = loop.model_updaters[0].model.predict(x_plot_high)
         # mu_plot_low, var_plot_low = loop.model_updaters[1].model.predict(x_plot_low)
