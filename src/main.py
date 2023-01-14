@@ -136,6 +136,9 @@ def basic_gp(dataloader, num_points):
     # Load Data Pipeline
     dataloader.load_data()
 
+    #normalize data
+    dataloader.normalize_data(dataloader.max_val, dataloader.min_val)
+
     # Bayesian optimization setup
     X_init = np.array([[0.2, 0.4], [0.6, -0.4], [0.9, 0.0]])
     # X_init = np.array([[0.2, 0.4], [0.6, -0.4], [0.9, 0.0], [-0.8, 0.8], [0.0, 0.7], [0.7, 0.5], [-0.8, -0.8], [-0.3, -0.7], [-0.1, 0.0]])
@@ -205,19 +208,19 @@ def main(use_wandb=True):
     )
     config.update({
         NUM_FIDELITIES: 2,
-        NUM_ITER: 30,
+        NUM_ITER: 150,#60,
         KERNELS: RBF,
         KERNELS_LOW: RBF,
         KERNEL_COMBINATION: SUM,
-        MATERN32_LENGTHSCALE: 130,
-        MATERN32_VARIANCE: 1.0,
-        RBF_LENGTHSCALE: 0.3, # Make this 0.08 for single fidelity
-        RBF_VARIANCE: 2.0, # Make this 20.0 for single fidelity
+        MATERN32_LENGTHSCALE: 2.6277, #130
+        MATERN32_VARIANCE: 0.751,
+        RBF_LENGTHSCALE: 0.1, # Make this 0.08 for single fidelity
+        RBF_VARIANCE: 20.0, # Make this 20.0 for single fidelity
         WHITE_VARIANCE: 20.0,
         PERIODIC_LENGTHSCALE: 0.08,
         PERIODIC_PERIOD: 1.0,
         PERIODIC_VARIANCE: 20.0,
-        MATERN32_LENGTHSCALE_LOW: 130,
+        MATERN32_LENGTHSCALE_LOW: 10.05,#130,
         MATERN32_VARIANCE_LOW: 1.0,
         RBF_LENGTHSCALE_LOW: 0.1, # 3.0
         RBF_VARIANCE_LOW: 20.0, # 
@@ -229,20 +232,19 @@ def main(use_wandb=True):
         OPTIMIZATION_RESTARTS: 0,
         OPTIMIZER_UPDATE_INTERVAL: 1,
         LOW_FIDELITY_COST: 1.0,
-        HIGH_FIDELITY_COST: 2.0,
+        HIGH_FIDELITY_COST: 3.0,
         MATPLOTLIB_BACKEND: 'Agg' if use_wandb else '', # set this to 'Agg' or another non-gui backend for wandb runs
     })
     global LOGGER
     LOGGER = CustomLogger(use_wandb=use_wandb, config=config)
     center_point = np.array([[LOGGER.config["lat"], LOGGER.config["lon"]]])
     dataloader_high_fidelity = NormalDataLoad(LOGGER.config["source"], center_point, LOGGER.config["num_points"], LOGGER.config["scale"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
-    # basic_gp(dataloader_high_fidelity, LOGGER.config["num_points"])
+    basic_gp(dataloader_high_fidelity, LOGGER.config["num_points"])
 
-    dataloader2 = NormalDataLoad(LOGGER.config["source_low"], center_point, LOGGER.config["num_points"], LOGGER.config["scale_low"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
+    # dataloader2 = NormalDataLoad(LOGGER.config["source_low"], center_point, LOGGER.config["num_points"], LOGGER.config["scale_low"], LOGGER.config["veg_idx_band"], LOGGER.config["data_load_type"])
 
-    mf_gp(dataloader_high_fidelity, dataloader2, LOGGER.config["num_points"])
+    # mf_gp(dataloader_high_fidelity, dataloader2, LOGGER.config["num_points"])
     LOGGER.stop_run()
-    input()
     return
 
 if __name__ == '__main__':
@@ -253,7 +255,7 @@ if __name__ == '__main__':
 
     # Define the kernel parameter search
     sweep_config = {
-        'name': 'Kernel param search: MF using RBF and RBF',
+        'name': 'Kernel param search: SF using RBF and MN final',
         'method': 'random',
         'metric': {
             'name': 'L2',
@@ -272,8 +274,8 @@ if __name__ == '__main__':
         # },
         RBF_LENGTHSCALE: {
             'distribution': 'log_uniform_values', # or 'uniform',
-            'min': 10**(-5),
-            'max': 10**(1),
+            'min': 10**(-2),
+            'max': 10**(2),
             # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
         },
         RBF_VARIANCE: {
@@ -284,8 +286,8 @@ if __name__ == '__main__':
         },
         # MATERN32_LENGTHSCALE: {
         #     'distribution': 'log_uniform_values', # or 'uniform',
-        #     'min': 10**(-3),
-        #     'max': 10**(3),
+        #     'min': 10**(-1),
+        #     'max': 10**(1),
         #     # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
         # },
         # MATERN32_VARIANCE: {
@@ -314,22 +316,22 @@ if __name__ == '__main__':
         #     'min': 10**(-2),
         #     'max': 10**2,
         # },
-        RBF_LENGTHSCALE_LOW: {
-            'distribution': 'log_uniform_values', # or 'uniform',
-            'min': 10**(-3),
-            'max': 10**(3),
-            # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
-        },
-        RBF_VARIANCE_LOW: {
-            'distribution': 'log_uniform_values',
-            'min': 10**(-1),
-            'max': 10**2,
-            # 'values': np.linspace(0.0, 50.0, 10),
-        },
-        # MATERN32_LENGTHSCALE_LOW: {
+        # RBF_LENGTHSCALE_LOW: {
         #     'distribution': 'log_uniform_values', # or 'uniform',
         #     'min': 10**(-3),
         #     'max': 10**(3),
+        #     # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
+        # },
+        # RBF_VARIANCE_LOW: {
+        #     'distribution': 'log_uniform_values',
+        #     'min': 10**(-1),
+        #     'max': 10**2,
+        #     # 'values': np.linspace(0.0, 50.0, 10),
+        # },
+        # MATERN32_LENGTHSCALE_LOW: {
+        #     'distribution': 'log_uniform_values', # or 'uniform',
+        #     'min': 10**(-2),
+        #     'max': 10**(2),
         #     # 'values': [i for i in np.logspace(-5, 5, 20, base=10)],
         # },
         # MATERN32_VARIANCE_LOW: {
