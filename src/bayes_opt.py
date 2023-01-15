@@ -22,6 +22,7 @@ from data import DataLoad
 from constants import *
 from custom_loop import CustomLoop
 from custom_kernels import CustomLinearMultiFidelityKernel
+from visualization import plot_variance, heatmap_comparison_mf
 from vegetation import WaterUtils
 from local_ivr import LocalBatchPointCalculator, LatinHypercubeMaximaIdentifier
 
@@ -190,6 +191,7 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     # Load ground truth as dataset
     ground_truth_high = dataloader1.load_data_local()
     ground_truth_high_reshaped = ground_truth_high.reshape(dataloader1.num_points ** 2, 1)
+    ground_truth_low = dataloader2.load_data_local()
 
     # # Custom kernels
     # vegetationDataLoader = DataLoad(source = "COPERNICUS/Landcover/100m/Proba-V-C3/Global", center_point = np.array([[config["lat"], config["lon"]]]), num_points = 101, scale = 250, veg_idx_band = 'discrete_classification', data_load_type = 'optimal')
@@ -233,10 +235,10 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     stopping_condition = CostStoppingCondition(config[NUM_ITER], config[MAX_COST])
 
     def log_metrics_mf(loop, loop_state: LoopState):
-        # print(f'Logging metrics on iteration {loop_state.iteration}')
+        print(f'Logging metrics on iteration {loop_state.iteration}')
         # Get predictions
         mu_plot_high, var_plot_high = loop.model_updaters[0].model.predict(x_plot_high)
-        # mu_plot_low, var_plot_low = loop.model_updaters[1].model.predict(x_plot_low)
+        mu_plot_low, var_plot_low = loop.model_updaters[0].model.predict(x_plot_low)
         std_plot_high = np.sqrt(var_plot_high)
 
         # Separate unseen data for special metrics
@@ -253,8 +255,22 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
         cost = num_low_fidelity_samples * config[LOW_FIDELITY_COST] + num_high_fidelity_samples * config[HIGH_FIDELITY_COST]
 
         # High fidelity metrics
-        logger.log_metrics(ground_truth_high_reshaped, mu_plot_high, std_plot_high, mu_unseen_high, std_unseen_high, ground_truth_unseen_high, num_low_fidelity_samples, num_high_fidelity_samples, cost)
-
+        logger.log_metrics(ground_truth_high_reshaped, mu_plot_high, std_plot_high, mu_unseen_high, std_unseen_high, ground_truth_unseen_high, num_low_fidelity_samples, num_high_fidelity_samples, cost, step=loop_state.iteration)
+        
+        # Plotting
+        if config[PLOT_FREQUENCY] > 0 and loop_state.iteration % config[PLOT_FREQUENCY] == 0:
+            num_points = dataloader1.num_points
+            mean_plot_low, mean_plot_high = heatmap_comparison_mf(mu_plot_high, mu_plot_low, ground_truth_high, ground_truth_low, num_points,
+                                            emukit_model, backend=config[MATPLOTLIB_BACKEND])
+            # Log summary of results
+            logger.log(dict(
+                mean_plot_high=mean_plot_high,
+                mean_plot_low=mean_plot_low,
+                # mean_plot_low=heatmap_comparison_mf(mu_plot_low, ground_truth_low, num_points, emukit_model, mf_choose=1.0, backend=LOGGER.config[MATPLOTLIB_BACKEND]),
+                variance_plot_high=plot_variance(var_plot_high, num_points, emukit_model, backend=config[MATPLOTLIB_BACKEND]),
+                variance_plot_low=plot_variance(var_plot_low, num_points, emukit_model, backend=config[MATPLOTLIB_BACKEND]),
+            ), step=loop_state.iteration)
+        
         if cost > config[MAX_COST]:
             stopping_condition.kill_loop()
         

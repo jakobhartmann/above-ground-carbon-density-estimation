@@ -1,6 +1,6 @@
 # Misc
-MATPLOTLIB_BACKEND = 'matplotlib_backend'
 SEPARATOR = '_'
+MATPLOTLIB_BACKEND = 'matplotlib' + SEPARATOR + 'backend'
 
 # General terminologiy:
 MODEL = 'model'
@@ -13,11 +13,12 @@ HIGH = 'high'
 FIDELITY = 'fidelity'
 COST = 'cost'
 MAX_COST = 'max' + SEPARATOR + COST
-NUM_ITER = 'num_iter'
-NUM_FIDELITIES = 'num_fidelities'
+NUM_ITER = 'num' + SEPARATOR + 'iter'
+NUM_FIDELITIES = 'num' + SEPARATOR + 'fidelities'
 PRODUCT = 'product'
 SUM = 'sum'
-NP_SEED = 'np_seed'
+NP_SEED = 'np' + SEPARATOR + 'seed'
+PLOT_FREQUENCY = 'plot' + SEPARATOR + 'frequency'
 
 # Kernels
 KERNELS = 'kernels'
@@ -35,7 +36,7 @@ PERIODIC = 'periodic'
 EXPONENTIAL = 'exponential'
 BIAS = 'bias'
 POSSIBLE_KERNELS = [MATERN32, RBF, WHITE, PERIODIC, EXPONENTIAL, SDE+SEPARATOR+MATERN32, SDE+SEPARATOR+RBF, SDE+SEPARATOR+WHITE, SDE+SEPARATOR+PERIODIC, SDE+SEPARATOR+EXPONENTIAL]
-KERNEL_COMBINATION = 'kernel_combination'
+KERNEL_COMBINATION = 'kernel' + SEPARATOR + 'combination'
 
 # Kernel hyperparameter names
 LENGTHSCALE = 'lengthscale'
@@ -106,4 +107,8 @@ MIXED_NOISE_HIGH = "mixed" + SEPARATOR + NOISE + SEPARATOR + HIGH
 OPTIMIZATION_RESTARTS = OPTIMIZATION + SEPARATOR + RESTARTS
 LOW_FIDELITY_COST = LOW + SEPARATOR + FIDELITY + SEPARATOR + COST
 HIGH_FIDELITY_COST = HIGH + SEPARATOR + FIDELITY + SEPARATOR + COST
-OPTIMIZER_UPDATE_INTERVAL = 'optimizer_update_interval'
+OPTIMIZER_UPDATE_INTERVAL = 'optimizer' + SEPARATOR + 'update' + SEPARATOR + 'interval'
+
+# Experiment tags
+EXPERIMENT_TAG = 'experiment' + SEPARATOR + 'tag'
+# TODO

@@ -195,6 +195,7 @@ def main(use_wandb=True):
         data_load_type = 'optimal', #   'api', 'local' or 'optimal'(takes local if exist)
         veg_idx_band = 'NDVI', # Choose vegetation index band. For our datasets, either 'NDVI' or 'EVI'.
     )
+    hyperparam_group_idx = 0
     config.update({
         NUM_FIDELITIES: 2,
         NUM_ITER: 150,
@@ -206,8 +207,8 @@ def main(use_wandb=True):
         KERNELS: MATERN32,
         KERNELS_LOW: MATERN32,
         KERNEL_COMBINATION: SUM,
-        MATERN32_LENGTHSCALE: 44.24350662103242, #2.6277, 
-        MATERN32_VARIANCE: 0.8936964632517727,
+        MATERN32_LENGTHSCALE: [0.5425797667333182, 0.028637264915442433, 44.24350662103242, 7.3405262046031154, 0.8514356518075225][hyperparam_group_idx],
+        MATERN32_VARIANCE: [0.1283794332009877, 1.476038420590855, 0.8936964632517727, 6.208744006850947, 0.02481786421060806][hyperparam_group_idx],
         MATERN52_LENGTHSCALE: 2.6277,
         MATERN52_VARIANCE: 0.751,
         RBF_LENGTHSCALE: 0.1, # Make this 0.08 for single fidelity
@@ -216,8 +217,8 @@ def main(use_wandb=True):
         PERIODIC_LENGTHSCALE: 0.08,
         PERIODIC_PERIOD: 1.0,
         PERIODIC_VARIANCE: 20.0,
-        MATERN32_LENGTHSCALE_LOW: 10.055739541561152,#2.48,
-        MATERN32_VARIANCE_LOW: 10.106729305184016,
+        MATERN32_LENGTHSCALE_LOW: [0.3861160261963027, 0.16871471207176245, 10.055739541561152, 3.801938213640844, 10.27116360634377][hyperparam_group_idx],
+        MATERN32_VARIANCE_LOW: [316.0255394382153, 21.607414309764657, 10.106729305184016, 43.54259360432732, 183.69915097972452][hyperparam_group_idx],
         RBF_LENGTHSCALE_LOW: 0.1, # 3.0
         RBF_VARIANCE_LOW: 20.0, # 
         WHITE_VARIANCE_LOW: 20.0,
@@ -252,6 +253,7 @@ def main(use_wandb=True):
         OPTIMIZER_UPDATE_INTERVAL: 1,
         LOW_FIDELITY_COST: 1.0,
         HIGH_FIDELITY_COST: 2.0,
+        PLOT_FREQUENCY: 30, # 0 to disable plotting during loops
         MATPLOTLIB_BACKEND: 'Agg' if use_wandb else '', # set this to 'Agg' or another non-gui backend for wandb runs
     })
     global LOGGER
@@ -285,6 +287,9 @@ if __name__ == '__main__':
         },
     }
     parameters_dict = {
+        NP_SEED: {
+            'values': [0, 1, 2, 3, 20],
+        },
         # KERNELS: {
         #     'values': [RBF, MATERN32, MATERN52, PERIODIC, WHITE, EXPONENTIAL, RBF+SEPARATOR+PERIODIC+SEPARATOR+WHITE, MATERN32+SEPARATOR+PERIODIC+SEPARATOR+WHITE],
         # },
@@ -317,11 +322,11 @@ if __name__ == '__main__':
             'min': 10**(-3),
             'max': 10**(1),
         },
-        # MATERN32_VARIANCE: {
-        #     'distribution': 'log_uniform_values',
-        #     'min': 10**(-2),
-        #     'max': 10**2,
-        # },
+        MATERN32_VARIANCE: {
+            'distribution': 'log_uniform_values',
+            'min': 10**(-2),
+            'max': 10**2,
+        },
         # MATERN52_LENGTHSCALE: {
         #     'distribution': 'log_uniform_values', # or 'uniform',
         #     'min': 10**(-3),
@@ -499,7 +504,7 @@ if __name__ == '__main__':
         sweep_id = wandb.sweep(sweep_config, project="sensor-placement", entity="camb-mphil")
         # sweep_id = wandb.sweep(sweep_config, project="test-sensor-placement", entity="sepand")
         print('sweep initialized')
-        wandb.agent(sweep_id, main, count=20)
+        wandb.agent(sweep_id, main, count=30)
     else:
         main(use_wandb=args.use_wandb)
 

@@ -12,7 +12,6 @@ class CustomLogger:
     def __init__(self, use_wandb: bool, config: Dict[str, Any], sweep_config: Union[Dict[str, Any], None]=None, *args, **kwargs):
         self.sweep_config: Union[Dict[str, Any], None] = sweep_config
         if use_wandb:
-            # wandb.init(project="sensor-placement", entity="camb-mphil", config=config)
             self._wandb_run = wandb.init(project="sensor-placement", entity="camb-mphil", config=config)
             print('wandb initialized')
             self.config = wandb.config
@@ -49,16 +48,16 @@ class CustomLogger:
             else:
                 print(" " * len(prefix) + key + ":" + str(val))
 
-    def log(self, data: Dict[str, Any]):
+    def log(self, data: Dict[str, Any], step=None):
         if wandb.run is None:
             self._print_and_show_log_dict(data)
         else:
             # print("Preprocessing data for wandb")
             data = self._preprocess_log_dict_wandb(data)
             # print(data)
-            wandb.log(data)
+            wandb.log(data, step=step)
 
-    def log_metrics(self, ground_truth_reshaped, mu_plot, std_plot, mu_unseen, std_unseen, ground_truth_unseen, num_low_fidelity_samples=None, num_high_fidelity_samples=None, cost=None):
+    def log_metrics(self, ground_truth_reshaped, mu_plot, std_plot, mu_unseen, std_unseen, ground_truth_unseen, num_low_fidelity_samples=None, num_high_fidelity_samples=None, cost=None, step=None):
         '''Log metrics to wandb and/or stdout'''
         L1, L2, MSE, PSNR, SSIM, MPDF_unseen, MPDF_all, KL, ModelVariance_unseen, ModelVariance_all = calc_metrics(mu_plot, std_plot, ground_truth_reshaped, mu_unseen, std_unseen, ground_truth_unseen)
 
@@ -73,10 +72,10 @@ class CustomLogger:
             KL = KL,
             ModelVariance_unseen = ModelVariance_unseen,
             ModelVariance_all = ModelVariance_all
-        ))
+        ), step)
         if num_low_fidelity_samples is not None:
             self.log(dict(
                 num_low_fidelity_samples = num_low_fidelity_samples,
                 num_high_fidelity_samples = num_high_fidelity_samples,
                 cost = cost,
-            ))
+            ), step)
