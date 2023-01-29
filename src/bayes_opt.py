@@ -1,5 +1,6 @@
 import numpy as np
 from emukit.core import ParameterSpace, DiscreteParameter, InformationSourceParameter
+from emukit.core.loop.candidate_point_calculators import GreedyBatchPointCalculator
 from emukit.experimental_design import ExperimentalDesignLoop
 import GPy
 from emukit.experimental_design.acquisitions import IntegratedVarianceReduction, ModelVariance
@@ -234,7 +235,11 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
     # Create stopping condition for controlling loop from within loop callback
     stopping_condition = CostStoppingCondition(config[NUM_ITER], config[MAX_COST])
 
+    cost = 0
+    last_low_fid_samples = 0
+    last_high_fid_samples = 0
     def log_metrics_mf(loop, loop_state: LoopState):
+        nonlocal cost, last_high_fid_samples, last_low_fid_samples
         print(f'Logging metrics on iteration {loop_state.iteration}')
         # Get predictions
         mu_plot_high, var_plot_high = loop.model_updaters[0].model.predict(x_plot_high)
@@ -252,11 +257,16 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
         X2_init_count = 3
         num_low_fidelity_samples = np.sum(loop.model_updaters[0].model.X[:, 2] == 0) - X1_init_count
         num_high_fidelity_samples = np.sum(loop.model_updaters[0].model.X[:, 2] == 1) - X2_init_count
-        cost = num_low_fidelity_samples * config[LOW_FIDELITY_COST] + num_high_fidelity_samples * config[HIGH_FIDELITY_COST]
+        if num_low_fidelity_samples > last_low_fid_samples:
+            last_low_fid_samples = num_low_fidelity_samples
+            cost += config[LOW_FIDELITY_COST]
+        elif num_high_fidelity_samples > last_high_fid_samples:
+            last_high_fid_samples = num_high_fidelity_samples
+            cost += config[HIGH_FIDELITY_COST]
 
         # High fidelity metrics
         logger.log_metrics(ground_truth_high_reshaped, mu_plot_high, std_plot_high, mu_unseen_high, std_unseen_high, ground_truth_unseen_high, num_low_fidelity_samples, num_high_fidelity_samples, cost, step=loop_state.iteration)
-        
+
         # Plotting
         if config[PLOT_FREQUENCY] > 0 and loop_state.iteration % config[PLOT_FREQUENCY] == 0:
             num_points = dataloader1.num_points
@@ -270,7 +280,7 @@ def mf_bayes_opt(dataloader1:'DataLoad', dataloader2:'DataLoad', x_space, y_spac
                 variance_plot_high=plot_variance(var_plot_high, num_points, emukit_model, backend=config[MATPLOTLIB_BACKEND]),
                 variance_plot_low=plot_variance(var_plot_low, num_points, emukit_model, backend=config[MATPLOTLIB_BACKEND]),
             ), step=loop_state.iteration)
-        
+
         if cost > config[MAX_COST]:
             stopping_condition.kill_loop()
         
