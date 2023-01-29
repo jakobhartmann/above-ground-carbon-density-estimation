@@ -60,7 +60,7 @@ def local_constant_liar_ivr(train_points: np.ndarray, test_points: np.ndarray, f
     anyway if it is in the same low fidelity cell. However, this shouldn't happen in practice as the variance at a
     neighbour should be relatively low
 
-    TODO IMPORANT: I'm not quite sure how calculate_variance_reduction() calculates IVR as it doesn't really look like the
+    TODO IMPORTANT: I'm not quite sure how calculate_variance_reduction() calculates IVR as it doesn't really look like the
      formula we know. However, it does NOT look additive so adding the variance of the different points might lead
      to low-res being preferred most of the time because more variance reductions are calculated and added
     """
@@ -158,7 +158,7 @@ class LocalBatchPointCalculator(CandidatePointCalculator):
         self.area_size = area_size
         self.area_padding = area_padding
         self.test_all_fidelities = test_all_fidelities
-        self.num_processes = 12
+        self.num_processes = num_processes
 
         # Preallocate/-compute for efficiency/convenience
         self.area_kernel = np.ones((self.area_size, self.area_size))
@@ -232,7 +232,10 @@ class LocalBatchPointCalculator(CandidatePointCalculator):
                                   self.model, self.test_all_fidelities, self.batch_size_per_fidelity])
 
         with multiprocessing.Pool(self.num_processes) as pool:
-            results = pool.starmap(local_constant_liar_ivr, pool_args)
+            try:
+                results = pool.starmap(local_constant_liar_ivr, pool_args)
+            except KeyboardInterrupt:
+                pool.terminate()
 
         return max(results, key=lambda x: x[0])[1]
 
